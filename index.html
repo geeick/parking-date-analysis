@@ -466,6 +466,67 @@
       font-size: 13px;
     }
 
+    .page-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 18px 0;
+    }
+
+    .page-tab {
+      min-height: 58px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #eef3fa;
+      color: var(--text);
+      font-weight: 950;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    .page-tab.active {
+      background: var(--blue);
+      color: white;
+      border-color: var(--blue);
+    }
+
+    .now-page {
+      margin-top: 18px;
+      padding: 20px;
+    }
+
+    .table-wrap {
+      margin-top: 18px;
+      overflow-x: auto;
+    }
+
+    .clean-table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+
+    .clean-table th,
+    .clean-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+    }
+
+    .clean-table th {
+      background: #f8fafc;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .clean-table tr:last-child td {
+      border-bottom: none;
+    }
+
     @media (max-width: 1120px) {
       .dashboard { grid-template-columns: 1fr; }
       .side-panel { position: static; max-height: none; order: -1; }
@@ -489,8 +550,6 @@
       <div>
         <p class="eyebrow">Safety Park Analysis</p>
         <h1>Hourly Car Entry Dashboard</h1>
-        <p class="subtitle">Upload a CSV. The graph updates automatically when you change filters.</p>
-        <span class="version-pill">v4 · right-side controls · real multi-lot selection</span>
       </div>
 
       <label class="upload-box" id="dropZone">
@@ -504,6 +563,15 @@
 
     <div id="statusCard" class="status-card">No CSV loaded yet.</div>
 
+    <div id="pageTabs" class="page-tabs hidden">
+      <button id="hourlyPageBtn" class="page-tab active" type="button">
+        Hourly graphs
+      </button>
+      <button id="nowPageBtn" class="page-tab" type="button">
+        Cars in lots right now
+      </button>
+    </div>
+        
     <section id="dashboard" class="dashboard hidden">
       <section id="results" class="main-panel">
         <div class="metrics">
@@ -587,8 +655,74 @@
             <label class="toggle"><input id="priceLabels" type="checkbox" /> Average price labels</label>
           </div>
         </div>
-      </aside>
+            </aside>
     </section>
+
+    <section id="nowPage" class="main-panel now-page hidden">
+      <div class="chart-topline">
+        <div>
+          <h2 class="chart-title">Cars in lots right now</h2>
+          <p class="chart-note">
+            Upload a Safety Park CSV from the previous day through right now.
+            This counts open tickets only and ignores extension rows.
+          </p>
+        </div>
+
+        <div class="mini-actions">
+          <button id="downloadOpenTicketsBtn" class="secondary-btn" type="button">
+            Download open tickets CSV
+          </button>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric">
+          <span class="metric-label">Open tickets</span>
+          <span id="nowOpenTickets" class="metric-value">--</span>
+        </div>
+
+        <div class="metric">
+          <span class="metric-label">Active lots</span>
+          <span id="nowActiveLots" class="metric-value">--</span>
+        </div>
+
+        <div class="metric">
+          <span class="metric-label">Oldest open entry</span>
+          <span id="nowOldestOpen" class="metric-value">--</span>
+        </div>
+
+        <div class="metric">
+          <span class="metric-label">CSV window</span>
+          <span id="nowCsvWindow" class="metric-value">--</span>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label class="control-label" for="nowLocationFilter">Location</label>
+        <select id="nowLocationFilter">
+          <option value="all">All locations</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table class="clean-table">
+          <thead>
+            <tr>
+              <th>Location</th>
+              <th>Open cars now</th>
+              <th>Oldest entry</th>
+              <th>Avg. hours open</th>
+            </tr>
+          </thead>
+          <tbody id="nowTableBody">
+            <tr>
+              <td colspan="4">Upload a CSV to calculate open tickets.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   <script>
     const HOURS = Array.from({ length: 24 }, (_, i) => i);
     const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -657,6 +791,13 @@
     }
 
     function showStatus(message, type = "success") {
+      console.log("STATUS:", message);
+
+      if (!els.statusCard) {
+        alert(message);
+        return;
+      }
+
       els.statusCard.textContent = message;
       els.statusCard.className = `status-card ${type}`;
     }

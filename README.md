@@ -1,3 +1,6 @@
+# Run the app
+python -m http.server 8000
+
 # Safety Park Hourly Entry Dashboard v4
 
 This is a GitHub Pages-ready static dashboard. It runs entirely in the browser with HTML, CSS, and JavaScript.
