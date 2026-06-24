@@ -3,26 +3,36 @@ const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Frida
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 const state = {
+  fileName: "",
   rawRows: [],
   records: [],
   columns: {},
   lastAggregatedRows: [],
   locations: [],
   allLocations: true,
-  selectedLocations: new Set()
+  selectedLocations: new Set(),
+  currentPage: "hourly"
 };
 
 const els = {
   fileInput: document.getElementById("fileInput"),
   dropZone: document.getElementById("dropZone"),
   statusCard: document.getElementById("statusCard"),
+  pageTabs: document.getElementById("pageTabs"),
+  hourlyPageBtn: document.getElementById("hourlyPageBtn"),
+  nowPageBtn: document.getElementById("nowPageBtn"),
+  dashboard: document.getElementById("dashboard"),
   controls: document.getElementById("controls"),
   results: document.getElementById("results"),
+  diagnostics: document.getElementById("diagnostics"),
   locationSummary: document.getElementById("locationSummary"),
   locationSearch: document.getElementById("locationSearch"),
   locationList: document.getElementById("locationList"),
   selectAllLocations: document.getElementById("selectAllLocations"),
+  customLocations: document.getElementById("customLocations"),
   clearLocations: document.getElementById("clearLocations"),
+  selectVisibleLocations: document.getElementById("selectVisibleLocations"),
+  locationPicker: document.getElementById("locationPicker"),
   dateMode: document.getElementById("dateMode"),
   specificDateWrap: document.getElementById("specificDateWrap"),
   specificDate: document.getElementById("specificDate"),
@@ -35,7 +45,6 @@ const els = {
   weekdayVariation: document.getElementById("weekdayVariation"),
   scatterValues: document.getElementById("scatterValues"),
   priceLabels: document.getElementById("priceLabels"),
-  generateBtn: document.getElementById("generateBtn"),
   chartTitle: document.getElementById("chartTitle"),
   chartNote: document.getElementById("chartNote"),
   chart: document.getElementById("chart"),
@@ -45,72 +54,101 @@ const els = {
   metricPaid: document.getElementById("metricPaid"),
   downloadPngBtn: document.getElementById("downloadPngBtn"),
   downloadCsvBtn: document.getElementById("downloadCsvBtn"),
-  pageTabs: document.getElementById("pageTabs"),
-  hourlyPageBtn: document.getElementById("hourlyPageBtn"),
-  nowPageBtn: document.getElementById("nowPageBtn"),
-  dashboard: document.getElementById("dashboard"),
   nowPage: document.getElementById("nowPage"),
   nowLocationFilter: document.getElementById("nowLocationFilter"),
   nowOpenTickets: document.getElementById("nowOpenTickets"),
   nowActiveLots: document.getElementById("nowActiveLots"),
   nowOldestOpen: document.getElementById("nowOldestOpen"),
+  nowCsvWindow: document.getElementById("nowCsvWindow"),
   nowTableBody: document.getElementById("nowTableBody"),
   downloadOpenTicketsBtn: document.getElementById("downloadOpenTicketsBtn")
 };
 
-function normalizeHeader(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]/g, "");
+function cleanCell(value) {
+  return String(value ?? "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim();
 }
 
-function findColumn(headers, candidates) {
-  const normalized = new Map(headers.map(h => [normalizeHeader(h), h]));
-  for (const candidate of candidates) {
-    const hit = normalized.get(normalizeHeader(candidate));
-    if (hit) return hit;
-  }
+function normalizeHeader(value) {
+  return cleanCell(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
 
-  for (const header of headers) {
-    const compact = normalizeHeader(header);
-    if (candidates.some(c => compact.includes(normalizeHeader(c)))) return header;
+function showStatus(message, type = "success") {
+  console.log("STATUS:", message);
+  if (!els.statusCard) {
+    alert(message);
+    return;
   }
+  els.statusCard.textContent = message;
+  els.statusCard.className = `status-card ${type}`;
+}
 
-  return null;
+function updateDiagnostics(text) {
+  if (els.diagnostics) els.diagnostics.textContent = text || "No parser details yet.";
 }
 
 function uniqueHeaders(headers) {
   const counts = new Map();
   return headers.map((header, index) => {
-    const cleaned = String(header || "").trim() || `Column ${index + 1}`;
+    const cleaned = cleanCell(header) || `Column ${index + 1}`;
     const count = counts.get(cleaned) || 0;
     counts.set(cleaned, count + 1);
     return count === 0 ? cleaned : `${cleaned} ${count + 1}`;
   });
 }
 
+function findColumn(headers, candidates) {
+  const normalized = headers.map(h => ({ raw: h, compact: normalizeHeader(h) }));
+  const candidateCompacts = candidates.map(normalizeHeader);
+
+  for (const candidate of candidateCompacts) {
+    const exact = normalized.find(h => h.compact === candidate);
+    if (exact) return exact.raw;
+  }
+
+  for (const item of normalized) {
+    if (candidateCompacts.some(candidate => candidate.length >= 5 && item.compact.includes(candidate))) {
+      return item.raw;
+    }
+  }
+
+  return null;
+}
+
+function scoreHeaderRow(headers) {
+  let score = 0;
+  const location = findColumn(headers, ["Location", "Parking Lot", "Lot", "Lot Name", "Location Name", "parking_lot", "location_name"]);
+  const entry = findColumn(headers, ["Entry Time", "Entry Date", "Entry Date Time", "Entry Datetime", "Entered At", "Entered", "Time Entered", "Date Entered", "entry_time", "entry_datetime"]);
+  const amount = findColumn(headers, ["Amount", "Total", "Paid", "Price", "Average Paid", "Payment Amount", "amount_paid", "transaction_amount"]);
+  const payment = findColumn(headers, ["Transaction Time", "Payment Time", "Paid Time", "Transaction Date", "transaction_time", "payment_time"]);
+  const ticket = findColumn(headers, ["Ticket#", "Ticket", "Ticket Number", "License Plate No."]);
+
+  if (location) score += 3;
+  if (entry) score += 10;
+  if (amount) score += 2;
+  if (payment) score += 1;
+  if (ticket) score += 1;
+  if (headers.length >= 8) score += 1;
+  return { score, location, entry, amount, payment };
+}
+
 function findHeaderRow(table) {
-  const maxScan = Math.min(table.length, 30);
-  let best = { index: -1, score: -1, headers: [] };
+  const maxScan = Math.min(table.length, 50);
+  let best = { index: -1, score: -1, headers: [], detected: {} };
 
   for (let i = 0; i < maxScan; i++) {
-    const row = (table[i] || []).map(cell => String(cell || "").trim());
+    const row = (table[i] || []).map(cleanCell);
     const nonEmpty = row.filter(Boolean).length;
     if (nonEmpty < 3) continue;
 
     const headers = uniqueHeaders(row);
-    let score = 0;
-    if (findColumn(headers, ["Location", "Parking Lot", "Lot", "Lot Name", "parking_lot", "location_name"])) score += 3;
-    if (findColumn(headers, ["Entry Time", "Entry Date", "Entered At", "entry_time", "entry_datetime", "date entered", "Time Entered"])) score += 6;
-    if (findColumn(headers, ["Amount", "Total", "Paid", "Price", "Payment Amount", "amount_paid", "transaction_amount"])) score += 2;
-    if (findColumn(headers, ["Transaction Time", "Payment Time", "Paid Time", "transaction_time", "payment_time"])) score += 1;
-
-    // Normal report files often have a title row first, then the real header row.
-    // This scoring makes the app pick the row with actual column names instead of the report title.
-    if (score > best.score) best = { index: i, score, headers };
+    const detected = scoreHeaderRow(headers);
+    if (detected.score > best.score) best = { index: i, score: detected.score, headers, detected };
   }
 
-  return best.score >= 6 ? best : null;
+  return best.score >= 10 ? best : null;
 }
 
 function tableToObjects(table, headerInfo) {
@@ -119,13 +157,10 @@ function tableToObjects(table, headerInfo) {
 
   for (let i = headerInfo.index + 1; i < table.length; i++) {
     const rowArray = table[i] || [];
-    const hasData = rowArray.some(cell => String(cell || "").trim() !== "");
-    if (!hasData) continue;
+    if (!rowArray.some(cell => cleanCell(cell) !== "")) continue;
 
     const row = {};
-    for (let j = 0; j < headers.length; j++) {
-      row[headers[j]] = rowArray[j] ?? "";
-    }
+    for (let j = 0; j < headers.length; j++) row[headers[j]] = cleanCell(rowArray[j]);
     rows.push(row);
   }
 
@@ -133,35 +168,32 @@ function tableToObjects(table, headerInfo) {
 }
 
 function parseDate(value) {
-  if (value === null || value === undefined) return null;
-  const s = String(value).trim();
+  const s = cleanCell(value);
   if (!s) return null;
 
-  // Handles values like 06/14/2026 3:00 PM, 6/14/26 15:00, and 07/04/2025 11:30 PM.
   const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?)?/i);
   if (slash) {
     let [, mm, dd, yyyy, hh = "0", min = "0", ampm] = slash;
-    let year = Number(yyyy.length === 2 ? `20${yyyy}` : yyyy);
+    const year = Number(yyyy.length === 2 ? `20${yyyy}` : yyyy);
     let hour = Number(hh);
     if (ampm) {
       const upper = ampm.toUpperCase();
       if (upper === "PM" && hour !== 12) hour += 12;
       if (upper === "AM" && hour === 12) hour = 0;
     }
-    return new Date(year, Number(mm) - 1, Number(dd), hour, Number(min), 0, 0);
+    const date = new Date(year, Number(mm) - 1, Number(dd), hour, Number(min), 0, 0);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
-  // Handles values like 2026-06-14 15:00 or 2026-06-14T15:00.
   const isoish = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]+(\d{1,2})(?::(\d{2}))?)?/);
   if (isoish) {
     const [, yyyy, mm, dd, hh = "0", min = "0"] = isoish;
-    return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), 0, 0);
+    const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), 0, 0);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   const direct = new Date(s);
-  if (!Number.isNaN(direct.getTime())) return direct;
-
-  return null;
+  return Number.isNaN(direct.getTime()) ? null : direct;
 }
 
 function toDateKey(date) {
@@ -176,118 +208,109 @@ function toMonthDay(date) {
 }
 
 function toNumber(value) {
-  if (value === null || value === undefined) return null;
-  const cleaned = String(value).replace(/[$,]/g, "").trim();
+  const cleaned = cleanCell(value).replace(/[$,]/g, "");
   if (!cleaned) return null;
   const num = Number(cleaned);
   return Number.isFinite(num) ? num : null;
 }
 
-function showStatus(message, type = "success") {
-  els.statusCard.textContent = message;
-  els.statusCard.className = `status-card ${type}`;
-}
-
-function setDateModeVisibility() {
-  const mode = els.dateMode.value;
-  els.specificDateWrap.classList.toggle("hidden", mode !== "specific");
-  els.startDateWrap.classList.toggle("hidden", mode !== "range");
-  els.endDateWrap.classList.toggle("hidden", mode !== "range");
+function formatDateTime(date) {
+  return date ? date.toLocaleString() : "--";
 }
 
 function handleFile(file) {
   if (!file) return;
-
+  state.fileName = file.name;
   showStatus(`Reading ${file.name}...`, "success");
 
-  Papa.parse(file, {
-    header: false,
-    skipEmptyLines: "greedy",
-    complete: results => {
-      if (results.errors.length) console.warn(results.errors);
+  if (typeof Papa === "undefined") {
+    showStatus("Papa Parse did not load. Make sure you are connected to the internet, then refresh and try again.", "error");
+    return;
+  }
 
-      const table = results.data || [];
-      const headerInfo = findHeaderRow(table);
-      if (!headerInfo) {
-        showStatus("I could not find a real header row with an Entry Time column. The CSV can have a report-title row above the headers, but it still needs a column like 'Entry Time'.", "error");
-        return;
-      }
-
-      const rows = tableToObjects(table, headerInfo);
-      loadRows(rows, file.name, headerInfo.index + 1);
-    },
-    error: error => showStatus(`Could not read the CSV: ${error.message}`, "error")
-  });
+  const reader = new FileReader();
+  reader.onerror = () => showStatus("Could not read that file. Try downloading the CSV again.", "error");
+  reader.onload = () => {
+    try {
+      parseCsvText(String(reader.result || ""), file.name);
+    } catch (error) {
+      console.error(error);
+      showStatus(`CSV parsing crashed: ${error.message}`, "error");
+    }
+  };
+  reader.readAsText(file);
 }
 
-function loadRows(rows, fileName, headerLineNumber) {
-  const headers = Object.keys(rows[0] || {});
-  if (!headers.length) {
-    showStatus("The CSV looks empty or does not have data below the headers.", "error");
+function parseCsvText(text, fileName) {
+  const preview = text.split(/\r?\n/).slice(0, 5).join("\n");
+  const parsed = Papa.parse(text, {
+    header: false,
+    skipEmptyLines: "greedy",
+    dynamicTyping: false,
+    transform: value => cleanCell(value)
+  });
+
+  const table = parsed.data || [];
+  const headerInfo = findHeaderRow(table);
+  const parseErrors = parsed.errors || [];
+
+  if (!headerInfo) {
+    const scanned = table.slice(0, 8).map((row, i) => `${i + 1}: ${(row || []).map(cleanCell).join(" | ")}`).join("\n");
+    updateDiagnostics(`File: ${fileName}\nRows parsed: ${table.length}\nCould not detect header row.\n\nFirst parsed rows:\n${scanned}\n\nRaw preview:\n${preview}\n\nPapa errors:\n${parseErrors.map(e => e.message).join("\n") || "None"}`);
+    showStatus("I could not find the Entry Time header. Open Parser details and send me what it says.", "error");
     return;
   }
 
-  const locationCol = findColumn(headers, ["Location", "Parking Lot", "Lot", "Lot Name", "parking_lot", "location_name"]);
-  const entryTimeCol = findColumn(headers, ["Entry Time", "Entry Date", "Entered At", "entry_time", "entry_datetime", "date entered", "Time Entered"]);
-  const amountCol = findColumn(headers, ["Amount", "Total", "Paid", "Price", "Payment Amount", "amount_paid", "transaction_amount"]);
-  const paymentTimeCol = findColumn(headers, ["Transaction Time", "Payment Time", "Paid Time", "transaction_time", "payment_time"]);
-  const exitTimeCol = findColumn(headers, ["Exit Time", "Exit Date", "Exit Date Time", "Exited At", "exit_time", "exit_datetime"]);
-  const ticketStatusCol = findColumn(headers, ["Ticket Status", "Status", "ticket_status"]);
-  const ticketCol = findColumn(headers, ["Ticket#", "Ticket", "Ticket Number", "ticket_number"]);
-  const licenseCol = findColumn(headers, ["License Plate No.", "License Plate", "Plate", "license_plate", "license"]);
-  const transactionDescriptionCol = findColumn(headers, ["Transaction Description", "Description", "transaction_description"]);
-  const ticketTypeCol = findColumn(headers, ["Ticket Type", "Type", "ticket_type"]);
-  const extendedByCol = findColumn(headers, ["Extended By", "ExtendedBy", "extended_by"]);
-  const reasonCol = findColumn(headers, ["Reason", "Notes", "reason"]);
+  const rows = tableToObjects(table, headerInfo);
+  const headers = headerInfo.headers;
+  const columns = detectColumns(headers);
 
-  if (!entryTimeCol) {
-    showStatus("I found headers, but not an entry-time column. Rename that column to something like 'Entry Time' and upload again.", "error");
+  updateDiagnostics(`File: ${fileName}\nRows parsed: ${table.length}\nData rows: ${rows.length}\nHeader row detected on line: ${headerInfo.index + 1}\nHeader score: ${headerInfo.score}\n\nDetected columns:\n${Object.entries(columns).map(([k, v]) => `${k}: ${v || "Not found"}`).join("\n")}\n\nHeaders found:\n${headers.join("\n")}\n\nRaw preview:\n${preview}\n\nPapa warnings/errors:\n${parseErrors.map(e => e.message).join("\n") || "None"}`);
+
+  if (!columns.entryTimeCol) {
+    showStatus("I found a header row, but not an Entry Time column. Open Parser details and send me the detected headers.", "error");
     return;
   }
 
-  state.columns = {
-    locationCol,
-    entryTimeCol,
-    amountCol,
-    paymentTimeCol,
-    exitTimeCol,
-    ticketStatusCol,
-    ticketCol,
-    licenseCol,
-    transactionDescriptionCol,
-    ticketTypeCol,
-    extendedByCol,
-    reasonCol
+  loadRows(rows, columns, fileName, headerInfo.index + 1);
+}
+
+function detectColumns(headers) {
+  return {
+    locationCol: findColumn(headers, ["Location", "Parking Lot", "Lot", "Lot Name", "Location Name", "parking_lot", "location_name"]),
+    entryTimeCol: findColumn(headers, ["Entry Time", "Entry Date", "Entry Date Time", "Entry Datetime", "Entered At", "Entered", "Time Entered", "Date Entered", "entry_time", "entry_datetime"]),
+    amountCol: findColumn(headers, ["Amount", "Total", "Paid", "Price", "Average Paid", "Payment Amount", "amount_paid", "transaction_amount"]),
+    paymentTimeCol: findColumn(headers, ["Transaction Time", "Payment Time", "Paid Time", "Transaction Date", "transaction_time", "payment_time"]),
+    exitTimeCol: findColumn(headers, ["Exit Time", "Exit Date", "Exit Date Time", "Exit Datetime", "Exited At", "Time Exited", "exit_time", "exit_datetime"]),
+    ticketStatusCol: findColumn(headers, ["Ticket Status", "ticket_status"]),
+    ticketCol: findColumn(headers, ["Ticket#", "Ticket", "Ticket Number", "ticket_number"]),
+    licensePlateCol: findColumn(headers, ["License Plate No.", "License Plate", "Plate", "license_plate"]),
+    transactionDescriptionCol: findColumn(headers, ["Transaction Description", "Description", "transaction_description"]),
+    ticketTypeCol: findColumn(headers, ["Ticket Type", "ticket_type"]),
+    extendedByCol: findColumn(headers, ["Extended By", "extended_by"]),
+    reasonCol: findColumn(headers, ["Reason", "reason"])
   };
+}
+
+function loadRows(rows, columns, fileName, headerLineNumber) {
+  state.columns = columns;
   state.rawRows = rows;
   state.records = rows.map((row, index) => {
-    const entryDate = parseDate(row[entryTimeCol]);
+    const entryDate = parseDate(row[columns.entryTimeCol]);
     if (!entryDate) return null;
 
-    const amount = amountCol ? toNumber(row[amountCol]) : null;
-    const paymentDate = paymentTimeCol ? parseDate(row[paymentTimeCol]) : null;
-    const exitRaw = exitTimeCol ? String(row[exitTimeCol] || "").trim() : "";
+    const amount = columns.amountCol ? toNumber(row[columns.amountCol]) : null;
+    const paymentDate = columns.paymentTimeCol ? parseDate(row[columns.paymentTimeCol]) : null;
+    const location = columns.locationCol ? cleanCell(row[columns.locationCol]) : "All imported data";
+    const exitRaw = columns.exitTimeCol ? cleanCell(row[columns.exitTimeCol]) : "";
     const exitDate = exitRaw ? parseDate(exitRaw) : null;
-    const ticketStatus = ticketStatusCol ? String(row[ticketStatusCol] || "").trim() : "";
-    const ticket = ticketCol ? String(row[ticketCol] || "").trim() : "";
-    const licensePlate = licenseCol ? String(row[licenseCol] || "").trim() : "";
-    const transactionDescription = transactionDescriptionCol ? String(row[transactionDescriptionCol] || "").trim() : "";
-    const ticketType = ticketTypeCol ? String(row[ticketTypeCol] || "").trim() : "";
-    const extendedBy = extendedByCol ? String(row[extendedByCol] || "").trim() : "";
-    const reason = reasonCol ? String(row[reasonCol] || "").trim() : "";
-    const location = locationCol ? String(row[locationCol] || "Unknown Location").trim() : "All imported data";
 
     return {
       rowIndex: index,
-      ticket,
-      licensePlate,
-      ticketStatus,
-      transactionDescription,
-      ticketType,
-      extendedBy,
-      reason,
       location: location || "Unknown Location",
       entryDateObj: entryDate,
+      exitRaw,
+      exitDateObj: exitDate,
       entryDate: toDateKey(entryDate),
       entryHour: entryDate.getHours(),
       year: entryDate.getFullYear(),
@@ -299,41 +322,45 @@ function loadRows(rows, fileName, headerLineNumber) {
       amount,
       paymentDateObj: paymentDate,
       paymentHour: paymentDate ? paymentDate.getHours() : null,
-      exitRaw,
-      exitDateObj: exitDate
+      ticketStatus: columns.ticketStatusCol ? cleanCell(row[columns.ticketStatusCol]) : "",
+      ticket: columns.ticketCol ? cleanCell(row[columns.ticketCol]) : "",
+      licensePlate: columns.licensePlateCol ? cleanCell(row[columns.licensePlateCol]) : "",
+      transactionDescription: columns.transactionDescriptionCol ? cleanCell(row[columns.transactionDescriptionCol]) : "",
+      ticketType: columns.ticketTypeCol ? cleanCell(row[columns.ticketTypeCol]) : "",
+      extendedBy: columns.extendedByCol ? cleanCell(row[columns.extendedByCol]) : "",
+      reason: columns.reasonCol ? cleanCell(row[columns.reasonCol]) : ""
     };
   }).filter(Boolean);
 
   if (!state.records.length) {
-    showStatus("No valid entry times were found in the CSV.", "error");
+    showStatus("The file loaded, but none of the Entry Time values could be parsed as dates.", "error");
     return;
   }
 
   populateFilters();
+  els.pageTabs.classList.remove("hidden");
+  els.dashboard.classList.remove("hidden");
   els.controls.classList.remove("hidden");
   els.results.classList.remove("hidden");
+  populateNowLocationFilter();
+  showDashboardPage("hourly");
 
-  const detected = [`entry: ${entryTimeCol}`];
-  if (locationCol) detected.push(`location: ${locationCol}`);
-  if (amountCol) detected.push(`amount: ${amountCol}`);
-  if (ticketCol) detected.push(`ticket: ${ticketCol}`);
-  if (exitTimeCol) detected.push(`exit: ${exitTimeCol}`);
-  if (ticketStatusCol) detected.push(`status: ${ticketStatusCol}`);
+  const detected = [`entry: ${columns.entryTimeCol}`];
+  if (columns.locationCol) detected.push(`location: ${columns.locationCol}`);
+  if (columns.amountCol) detected.push(`amount: ${columns.amountCol}`);
   showStatus(`Loaded ${state.records.length.toLocaleString()} entries from ${fileName}. Header row detected on line ${headerLineNumber}. Detected ${detected.join(", ")}.`, "success");
   generateChart();
-  els.pageTabs?.classList.remove("hidden");
-  populateNowLocationFilter();
   renderNowPage();
 }
 
 function populateFilters() {
-  state.locations = [...new Set(state.records.map(r => r.location))].sort((a, b) => a.localeCompare(b));
+  state.locations = [...new Set(state.records.map(r => r.location))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   state.allLocations = true;
   state.selectedLocations = new Set();
   els.locationSearch.value = "";
   renderLocationButtons();
 
-  const dates = state.records.map(r => r.entryDate).sort();
+  const dates = [...new Set(state.records.map(r => r.entryDate))].sort();
   const minDate = dates[0];
   const maxDate = dates[dates.length - 1];
   for (const input of [els.specificDate, els.startDate, els.endDate]) {
@@ -343,21 +370,11 @@ function populateFilters() {
   els.specificDate.value = maxDate;
   els.startDate.value = minDate;
   els.endDate.value = maxDate;
-  els.hourlyPageBtn?.addEventListener("click", () => showDashboardPage("hourly"));
-els.nowPageBtn?.addEventListener("click", () => showDashboardPage("now"));
-els.nowLocationFilter?.addEventListener("change", renderNowPage);
-els.downloadOpenTicketsBtn?.addEventListener("click", downloadOpenTicketsCsv);
-
-setDateModeVisibility();
+  setDateModeVisibility();
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
 }
 
 function renderLocationButtons() {
@@ -365,30 +382,43 @@ function renderLocationButtons() {
   const visibleLocations = state.locations.filter(location => location.toLowerCase().includes(query));
 
   els.selectAllLocations.classList.toggle("active", state.allLocations);
-  els.clearLocations.disabled = state.allLocations && state.selectedLocations.size === 0;
+  els.customLocations.classList.toggle("active", !state.allLocations);
+  els.locationPicker.classList.toggle("hidden", state.allLocations);
+  els.clearLocations.disabled = state.allLocations || state.selectedLocations.size === 0;
 
   if (state.allLocations) {
     els.locationSummary.textContent = `All parking lots included (${state.locations.length.toLocaleString()} lot${state.locations.length === 1 ? "" : "s"}).`;
   } else if (state.selectedLocations.size === 0) {
-    els.locationSummary.textContent = "No parking lots selected.";
+    els.locationSummary.textContent = "Custom mode is on. Select one or more parking lots.";
   } else if (state.selectedLocations.size === 1) {
-    els.locationSummary.textContent = [...state.selectedLocations][0];
+    els.locationSummary.textContent = `Selected: ${[...state.selectedLocations][0]}`;
   } else {
     const preview = [...state.selectedLocations].slice(0, 3).join(", ");
     const extra = state.selectedLocations.size > 3 ? ` +${state.selectedLocations.size - 3} more` : "";
     els.locationSummary.textContent = `${state.selectedLocations.size} parking lots selected: ${preview}${extra}`;
   }
 
+  if (!visibleLocations.length) {
+    els.locationList.innerHTML = `<div class="empty-list">No lots match your search.</div>`;
+    return;
+  }
+
   els.locationList.innerHTML = visibleLocations.map(location => {
     const index = state.locations.indexOf(location);
     const selected = !state.allLocations && state.selectedLocations.has(location);
-    return `<button type="button" class="location-chip ${selected ? "selected" : ""}" data-location-index="${index}">${escapeHtml(location)}</button>`;
+    return `<label class="lot-row"><input type="checkbox" data-location-index="${index}" ${selected ? "checked" : ""} /><span>${escapeHtml(location)}</span></label>`;
   }).join("");
 }
 
 function selectAllLocations() {
   state.allLocations = true;
   state.selectedLocations.clear();
+  renderLocationButtons();
+  generateChartIfReady();
+}
+
+function chooseCustomLocations() {
+  state.allLocations = false;
   renderLocationButtons();
   generateChartIfReady();
 }
@@ -400,27 +430,34 @@ function clearLocations() {
   generateChartIfReady();
 }
 
-function toggleLocation(location) {
-  if (state.allLocations) {
-    state.allLocations = false;
-    state.selectedLocations.clear();
-    state.selectedLocations.add(location);
-  } else if (state.selectedLocations.has(location)) {
-    state.selectedLocations.delete(location);
-  } else {
-    state.selectedLocations.add(location);
-  }
-
+function selectVisibleLocations() {
+  const query = els.locationSearch.value.trim().toLowerCase();
+  const visibleLocations = state.locations.filter(location => location.toLowerCase().includes(query));
+  state.allLocations = false;
+  for (const location of visibleLocations) state.selectedLocations.add(location);
   renderLocationButtons();
   generateChartIfReady();
+}
+
+function toggleLocation(location) {
+  state.allLocations = false;
+  if (state.selectedLocations.has(location)) state.selectedLocations.delete(location);
+  else state.selectedLocations.add(location);
+  renderLocationButtons();
+  generateChartIfReady();
+}
+
+function setDateModeVisibility() {
+  const mode = els.dateMode.value;
+  els.specificDateWrap.classList.toggle("hidden", mode !== "specific");
+  els.startDateWrap.classList.toggle("hidden", mode !== "range");
+  els.endDateWrap.classList.toggle("hidden", mode !== "range");
 }
 
 function getFilteredRecords() {
   let records = [...state.records];
 
-  if (!state.allLocations) {
-    records = records.filter(r => state.selectedLocations.has(r.location));
-  }
+  if (!state.allLocations) records = records.filter(r => state.selectedLocations.has(r.location));
 
   const mode = els.dateMode.value;
   if (mode === "specific" && els.specificDate.value) {
@@ -431,7 +468,7 @@ function getFilteredRecords() {
     records = records.filter(r => r.entryDate >= start && r.entryDate <= end);
   }
 
-  if (els.compareYears.checked && els.sameDatesOnly.checked) {
+  if (els.compareYears.checked && els.sameDatesOnly.checked && !els.weekdayVariation.checked) {
     records = filterToSameMonthDaysAcrossYears(records);
   }
 
@@ -443,14 +480,10 @@ function filterToSameMonthDaysAcrossYears(records) {
   if (years.length < 2) return records;
 
   const monthDaysByYear = new Map();
-  for (const year of years) {
-    monthDaysByYear.set(year, new Set(records.filter(r => r.year === year).map(r => r.monthDay)));
-  }
+  for (const year of years) monthDaysByYear.set(year, new Set(records.filter(r => r.year === year).map(r => r.monthDay)));
 
   let common = null;
-  for (const set of monthDaysByYear.values()) {
-    common = common === null ? new Set(set) : new Set([...common].filter(md => set.has(md)));
-  }
+  for (const set of monthDaysByYear.values()) common = common === null ? new Set(set) : new Set([...common].filter(md => set.has(md)));
 
   return records.filter(r => common.has(r.monthDay));
 }
@@ -505,13 +538,12 @@ function aggregate(records) {
       }
 
       const prices = pricesByGroupHour.get(`${group}|${hour}`) || [];
-      const avgPaid = prices.length ? average(prices) : null;
       lineRows.push({
         group,
         hour,
         avgCars: dates.length ? total / dates.length : 0,
         activeDates: dates.length,
-        avgPaid
+        avgPaid: prices.length ? average(prices) : null
       });
     }
   }
@@ -530,10 +562,18 @@ function formatMoney(value) {
 }
 
 function generateChartIfReady() {
-  if (state.records.length) generateChart();
+  if (state.records.length) {
+    generateChart();
+    renderNowPage();
+  }
 }
 
 function generateChart() {
+  if (typeof Plotly === "undefined") {
+    showStatus("Plotly did not load. Make sure you are connected to the internet, then refresh and try again.", "error");
+    return;
+  }
+
   const records = getFilteredRecords();
   if (!records.length) {
     showStatus("No rows match the selected filters. Choose at least one parking lot or change the date filter.", "error");
@@ -541,7 +581,6 @@ function generateChart() {
     state.lastAggregatedRows = [];
     return;
   }
-
 
   const { groups, lineRows, scatterRows } = aggregate(records);
   state.lastAggregatedRows = lineRows;
@@ -560,7 +599,7 @@ function generateChart() {
         mode: "markers",
         type: "scatter",
         name: groups.length === 1 ? "Actual date-hour counts" : `${group} actual counts`,
-        marker: { size: 8, opacity: 0.27 },
+        marker: { size: 8, opacity: 0.24 },
         hovertemplate: "%{text}<br>Hour %{x}<br>Cars entered: %{y}<extra></extra>"
       });
     }
@@ -587,42 +626,25 @@ function generateChart() {
     });
   }
 
-  const yMax = Math.max(5, ...lineRows.map(row => row.avgCars), ...scatterRows.map(row => row.count)) * 1.16;
+  const yCandidates = [...lineRows.map(row => row.avgCars), ...scatterRows.map(row => row.count)];
+  const yMax = Math.max(5, ...yCandidates) * 1.16;
 
   const layout = {
-    margin: { l: 64, r: 28, t: 24, b: 62 },
-    height: 590,
+    margin: { l: 64, r: 28, t: 24, b: 76 },
+    height: 610,
     paper_bgcolor: "white",
     plot_bgcolor: "white",
     hovermode: "closest",
-    legend: { orientation: "h", y: -0.22, x: 0 },
-    xaxis: {
-      title: "Hour of Day",
-      tickmode: "array",
-      tickvals: HOURS,
-      range: [-0.5, 23.5],
-      gridcolor: "#e5e7eb",
-      zeroline: false
-    },
-    yaxis: {
-      title: "Average Cars Entering",
-      rangemode: "tozero",
-      range: [0, yMax],
-      gridcolor: "#e5e7eb",
-      zeroline: false
-    }
+    legend: { orientation: "h", y: -0.23, x: 0 },
+    xaxis: { title: "Hour of Day", tickmode: "array", tickvals: HOURS, range: [-0.5, 23.5], gridcolor: "#e5e7eb", zeroline: false },
+    yaxis: { title: "Average Cars Entering", rangemode: "tozero", range: [0, yMax], gridcolor: "#e5e7eb", zeroline: false }
   };
 
-  const config = {
-    responsive: true,
-    displaylogo: false,
-    modeBarButtonsToRemove: ["lasso2d", "select2d"]
-  };
-
+  const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
   Plotly.newPlot(els.chart, traces, layout, config);
 
   els.chartNote.textContent = tooManyPriceLabels
-    ? "Price labels are in hover because this chart has many lines. This keeps it readable."
+    ? "Price labels are available in hover because this chart has many lines. This keeps it readable."
     : buildNote(records);
 }
 
@@ -658,48 +680,39 @@ function updateTitle(records, groups) {
 function buildNote(records) {
   const dates = [...new Set(records.map(r => r.entryDate))].sort();
   const dateText = dates.length === 1 ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`;
-  const locText = getLocationLabel();
-  return `Each point is the average for that hour across ${dates.length.toLocaleString()} active date${dates.length === 1 ? "" : "s"}. Location filter: ${locText}. Date span: ${dateText}.`;
+  return `Each point is the average for that hour across ${dates.length.toLocaleString()} active date${dates.length === 1 ? "" : "s"}. Location filter: ${getLocationLabel()}. Date span: ${dateText}.`;
 }
 
+function downloadAggregatedCsv() {
+  if (!state.lastAggregatedRows.length) return;
+  const rows = state.lastAggregatedRows.map(row => ({
+    file_name: state.fileName,
+    location_filter: getLocationLabel(),
+    group: row.group,
+    hour: row.hour,
+    average_cars_entering: row.avgCars.toFixed(3),
+    active_dates: row.activeDates,
+    average_paid: row.avgPaid === null ? "" : row.avgPaid.toFixed(2)
+  }));
+  downloadCsv(rows, "hourly_entry_summary.csv");
+}
+
+function isExtensionRecord(record) {
+  const combined = [record.transactionDescription, record.ticketType, record.reason].join(" ").toLowerCase();
+  const extendedByFilled = cleanCell(record.extendedBy) !== "";
+  return extendedByFilled || combined.includes("extension") || combined.includes("extend") || combined.includes("extended") || combined.includes("renewal");
+}
 
 function getAnalysisNow(records) {
   const times = records
-    .map(r => r.transactionDateObj || r.paymentDateObj || r.entryDateObj)
+    .map(r => r.paymentDateObj || r.exitDateObj || r.entryDateObj)
     .filter(Boolean)
     .map(d => d.getTime());
-
-  if (!times.length) return new Date();
-  return new Date(Math.max(...times));
+  return times.length ? new Date(Math.max(...times)) : new Date();
 }
 
 function startOfPreviousDay(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1, 0, 0, 0, 0);
-}
-
-function isExtensionRecord(record) {
-  const text = [
-    record.extendedBy,
-    record.transactionDescription,
-    record.ticketType,
-    record.reason
-  ].join(" ").toLowerCase();
-
-  // Important: extension rows are payment/time-extension records, not extra cars.
-  // Do not count them as separate open tickets.
-  return Boolean(String(record.extendedBy || "").trim()) ||
-    /\bextension\b|\bextended\b|\bextend\b|\brenewal\b|\brenewed\b/.test(text);
-}
-
-function isClosedStatus(statusText) {
-  const status = String(statusText || "").toLowerCase();
-  return status.includes("closed") ||
-    status.includes("close") ||
-    status.includes("completed") ||
-    status.includes("complete") ||
-    status.includes("cancel") ||
-    status.includes("void") ||
-    status.includes("refund");
 }
 
 function isOpenTicket(record) {
@@ -709,32 +722,29 @@ function isOpenTicket(record) {
   const hasExitTime = Boolean(record.exitDateObj) || Boolean(record.exitRaw);
 
   if (hasExitTime) return false;
-  if (isClosedStatus(status)) return false;
+  if (status.includes("closed") || status.includes("cancel") || status.includes("void") || status.includes("refunded")) return false;
   if (status.includes("open")) return true;
-
-  // If there is no exit time and the ticket is not explicitly closed, treat it as currently open.
-  return true;
+  return !hasExitTime;
 }
 
-function latestPrimaryRecordPerTicket(records) {
+function ticketDedupKey(record) {
+  const ticket = cleanCell(record.ticket);
+  if (ticket) return `ticket:${ticket}`;
+  const plate = cleanCell(record.licensePlate);
+  if (plate) return `plate:${plate}`;
+  return `row:${record.rowIndex}`;
+}
+
+function latestRecordPerTicket(records) {
   const latest = new Map();
 
   for (const record of records) {
-    // Extension rows should not become their own open ticket and should not replace the original row.
     if (isExtensionRecord(record)) continue;
-
-    const key = record.ticket || record.licensePlate || `${record.location}|row-${record.rowIndex}`;
-    const recordTime = (record.transactionDateObj || record.paymentDateObj || record.entryDateObj || new Date(0)).getTime();
-
-    if (!latest.has(key)) {
-      latest.set(key, record);
-      continue;
-    }
-
+    const key = ticketDedupKey(record);
+    const recordTime = (record.paymentDateObj || record.exitDateObj || record.entryDateObj || new Date(0)).getTime();
     const old = latest.get(key);
-    const oldTime = (old.transactionDateObj || old.paymentDateObj || old.entryDateObj || new Date(0)).getTime();
-
-    if (recordTime > oldTime) latest.set(key, record);
+    const oldTime = old ? (old.paymentDateObj || old.exitDateObj || old.entryDateObj || new Date(0)).getTime() : -1;
+    if (!old || recordTime > oldTime) latest.set(key, record);
   }
 
   return [...latest.values()];
@@ -743,38 +753,24 @@ function latestPrimaryRecordPerTicket(records) {
 function getOpenTicketsNow() {
   const analysisNow = getAnalysisNow(state.records);
   const since = startOfPreviousDay(analysisNow);
-  const latestRecords = latestPrimaryRecordPerTicket(state.records);
-
-  return latestRecords.filter(record => {
-    if (!record.entryDateObj) return false;
-    if (record.entryDateObj < since) return false;
-    if (record.entryDateObj > analysisNow) return false;
-    return isOpenTicket(record);
-  });
+  const possibleRecords = state.records.filter(record => record.entryDateObj && record.entryDateObj >= since && record.entryDateObj <= analysisNow);
+  return latestRecordPerTicket(possibleRecords).filter(isOpenTicket);
 }
 
 function populateNowLocationFilter() {
   if (!els.nowLocationFilter) return;
-
-  const current = els.nowLocationFilter.value || "all";
-  const locations = [...new Set(state.records.map(r => r.location))]
-    .filter(Boolean)
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-  els.nowLocationFilter.innerHTML = `<option value="all">All locations</option>` +
-    locations.map(location => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`).join("");
-
-  if (locations.includes(current)) els.nowLocationFilter.value = current;
+  const locations = [...new Set(state.records.map(r => r.location))].filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  els.nowLocationFilter.innerHTML = `<option value="all">All locations</option>` + locations.map(location => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`).join("");
 }
 
 function renderNowPage() {
   if (!els.nowPage || !state.records.length) return;
-
   const filter = els.nowLocationFilter?.value || "all";
   const analysisNow = getAnalysisNow(state.records);
+  const since = startOfPreviousDay(analysisNow);
   let openTickets = getOpenTicketsNow();
 
-  if (filter !== "all") openTickets = openTickets.filter(r => r.location === filter);
+  if (filter !== "all") openTickets = openTickets.filter(record => record.location === filter);
 
   const byLocation = new Map();
   for (const ticket of openTickets) {
@@ -783,52 +779,46 @@ function renderNowPage() {
   }
 
   const rows = [...byLocation.entries()].map(([location, tickets]) => {
-    const oldest = tickets.reduce((min, ticket) => !min || ticket.entryDateObj < min ? ticket.entryDateObj : min, null);
+    const oldest = tickets.reduce((min, ticket) => (!min || ticket.entryDateObj < min ? ticket.entryDateObj : min), null);
     const avgHours = tickets.reduce((sum, ticket) => sum + ((analysisNow - ticket.entryDateObj) / 36e5), 0) / tickets.length;
     return { location, count: tickets.length, oldest, avgHours };
-  }).sort((a, b) => b.count - a.count || a.location.localeCompare(b.location));
+  }).sort((a, b) => b.count - a.count);
 
-  if (els.nowOpenTickets) els.nowOpenTickets.textContent = openTickets.length.toLocaleString();
-  if (els.nowActiveLots) els.nowActiveLots.textContent = rows.length.toLocaleString();
+  els.nowOpenTickets.textContent = openTickets.length.toLocaleString();
+  els.nowActiveLots.textContent = rows.length.toLocaleString();
+  const oldestOverall = rows.map(row => row.oldest).filter(Boolean).sort((a, b) => a - b)[0];
+  els.nowOldestOpen.textContent = oldestOverall ? formatDateTime(oldestOverall) : "--";
+  els.nowCsvWindow.textContent = `${toDateKey(since)} → ${toDateKey(analysisNow)}`;
 
-  const oldestOverall = rows.map(r => r.oldest).filter(Boolean).sort((a, b) => a - b)[0];
-  if (els.nowOldestOpen) els.nowOldestOpen.textContent = oldestOverall ? oldestOverall.toLocaleString() : "--";
-
-  if (!els.nowTableBody) return;
   if (!rows.length) {
     els.nowTableBody.innerHTML = `<tr><td colspan="4">No open tickets found for the selected CSV/location.</td></tr>`;
     return;
   }
 
-  els.nowTableBody.innerHTML = rows.map(row => `
-    <tr>
-      <td>${escapeHtml(row.location)}</td>
-      <td><strong>${row.count.toLocaleString()}</strong></td>
-      <td>${row.oldest ? row.oldest.toLocaleString() : "--"}</td>
-      <td>${Number(row.avgHours).toFixed(1)}</td>
-    </tr>
-  `).join("");
+  els.nowTableBody.innerHTML = rows.map(row => `<tr><td>${escapeHtml(row.location)}</td><td><strong>${row.count.toLocaleString()}</strong></td><td>${row.oldest ? formatDateTime(row.oldest) : "--"}</td><td>${Number(row.avgHours).toFixed(1)}</td></tr>`).join("");
 }
 
 function downloadOpenTicketsCsv() {
   const openTickets = getOpenTicketsNow();
-  const csvRows = openTickets.map(ticket => ({
+  const rows = openTickets.map(ticket => ({
     ticket: ticket.ticket,
     license_plate: ticket.licensePlate,
     location: ticket.location,
-    entry_time: ticket.entryDateObj ? ticket.entryDateObj.toLocaleString() : "",
+    entry_time: ticket.entryDateObj ? formatDateTime(ticket.entryDateObj) : "",
     ticket_status: ticket.ticketStatus,
     exit_time: ticket.exitRaw || "",
-    amount: ticket.amount ?? "",
-    excluded_extension: "no"
+    amount: ticket.amount ?? ""
   }));
+  downloadCsv(rows, "open_tickets_right_now.csv");
+}
 
-  const csv = Papa.unparse(csvRows);
+function downloadCsv(rows, filename) {
+  const csv = Papa.unparse(rows);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "open_tickets_right_now.csv";
+  link.download = filename;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -836,99 +826,62 @@ function downloadOpenTicketsCsv() {
 }
 
 function showDashboardPage(pageName) {
+  state.currentPage = pageName;
   if (pageName === "now") {
-    els.dashboard?.classList.add("hidden");
-    els.results?.classList.add("hidden");
-    els.controls?.classList.add("hidden");
-    els.nowPage?.classList.remove("hidden");
-    els.hourlyPageBtn?.classList.remove("active");
-    els.nowPageBtn?.classList.add("active");
+    els.dashboard.classList.add("hidden");
+    els.nowPage.classList.remove("hidden");
+    els.hourlyPageBtn.classList.remove("active");
+    els.nowPageBtn.classList.add("active");
     renderNowPage();
   } else {
-    els.dashboard?.classList.remove("hidden");
-    els.results?.classList.remove("hidden");
-    els.controls?.classList.remove("hidden");
-    els.nowPage?.classList.add("hidden");
-    els.hourlyPageBtn?.classList.add("active");
-    els.nowPageBtn?.classList.remove("active");
+    els.dashboard.classList.remove("hidden");
+    els.nowPage.classList.add("hidden");
+    els.hourlyPageBtn.classList.add("active");
+    els.nowPageBtn.classList.remove("active");
   }
 }
 
-function downloadAggregatedCsv() {
-  if (!state.lastAggregatedRows.length) return;
-  const rows = state.lastAggregatedRows.map(row => ({
-    location_filter: getLocationLabel(),
-    group: row.group,
-    hour: row.hour,
-    average_cars_entering: row.avgCars.toFixed(3),
-    active_dates: row.activeDates,
-    average_paid: row.avgPaid === null ? "" : row.avgPaid.toFixed(2)
-  }));
-  const csv = Papa.unparse(rows);
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = "hourly_entry_summary.csv";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
+function wireEvents() {
+  els.fileInput.addEventListener("change", event => handleFile(event.target.files[0]));
 
-els.fileInput?.addEventListener("change", event => handleFile(event.target.files[0]));
-
-els.dropZone?.addEventListener("dragover", event => {
-  event.preventDefault();
-  els.dropZone.classList.add("dragging");
-});
-
-els.dropZone?.addEventListener("dragleave", () => els.dropZone.classList.remove("dragging"));
-
-els.dropZone?.addEventListener("drop", event => {
-  event.preventDefault();
-  els.dropZone.classList.remove("dragging");
-  handleFile(event.dataTransfer.files[0]);
-});
-
-els.locationSearch?.addEventListener("input", renderLocationButtons);
-els.selectAllLocations?.addEventListener("click", selectAllLocations);
-els.clearLocations?.addEventListener("click", clearLocations);
-els.locationList?.addEventListener("click", event => {
-  const button = event.target.closest("button[data-location-index]");
-  if (!button) return;
-  const location = state.locations[Number(button.dataset.locationIndex)];
-  if (location) toggleLocation(location);
-});
-
-els.dateMode?.addEventListener("change", () => {
-  setDateModeVisibility();
-  generateChartIfReady();
-});
-
-for (const el of [
-  els.specificDate,
-  els.startDate,
-  els.endDate,
-  els.compareYears,
-  els.sameDatesOnly,
-  els.weekdayVariation,
-  els.scatterValues,
-  els.priceLabels
-]) {
-  el?.addEventListener("change", generateChartIfReady);
-}
-
-els.generateBtn?.addEventListener("click", generateChart);
-els.downloadCsvBtn?.addEventListener("click", downloadAggregatedCsv);
-els.downloadPngBtn?.addEventListener("click", () => {
-  Plotly.downloadImage(els.chart, {
-    format: "png",
-    filename: "hourly_entry_graph",
-    width: 1600,
-    height: 900,
-    scale: 2
+  els.dropZone.addEventListener("dragover", event => {
+    event.preventDefault();
+    els.dropZone.classList.add("dragging");
   });
-});
+  els.dropZone.addEventListener("dragleave", () => els.dropZone.classList.remove("dragging"));
+  els.dropZone.addEventListener("drop", event => {
+    event.preventDefault();
+    els.dropZone.classList.remove("dragging");
+    handleFile(event.dataTransfer.files[0]);
+  });
 
+  els.hourlyPageBtn.addEventListener("click", () => showDashboardPage("hourly"));
+  els.nowPageBtn.addEventListener("click", () => showDashboardPage("now"));
+  els.nowLocationFilter.addEventListener("change", renderNowPage);
+  els.downloadOpenTicketsBtn.addEventListener("click", downloadOpenTicketsCsv);
+
+  els.locationSearch.addEventListener("input", renderLocationButtons);
+  els.selectAllLocations.addEventListener("click", selectAllLocations);
+  els.customLocations.addEventListener("click", chooseCustomLocations);
+  els.clearLocations.addEventListener("click", clearLocations);
+  els.selectVisibleLocations.addEventListener("click", selectVisibleLocations);
+  els.locationList.addEventListener("change", event => {
+    const input = event.target.closest("input[data-location-index]");
+    if (!input) return;
+    const location = state.locations[Number(input.dataset.locationIndex)];
+    if (location) toggleLocation(location);
+  });
+
+  els.dateMode.addEventListener("change", () => { setDateModeVisibility(); generateChartIfReady(); });
+  for (const el of [els.specificDate, els.startDate, els.endDate, els.compareYears, els.sameDatesOnly, els.weekdayVariation, els.scatterValues, els.priceLabels]) {
+    el.addEventListener("change", generateChartIfReady);
+  }
+
+  els.downloadCsvBtn.addEventListener("click", downloadAggregatedCsv);
+  els.downloadPngBtn.addEventListener("click", () => {
+    Plotly.downloadImage(els.chart, { format: "png", filename: "hourly_entry_graph", width: 1600, height: 900, scale: 2 });
+  });
+}
+
+wireEvents();
 setDateModeVisibility();

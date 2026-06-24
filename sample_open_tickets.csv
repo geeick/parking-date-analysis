@@ -1,0 +1,6 @@
+Location,Ticket#,License Plate No.,Amount,Entry Time,Exit Time,Transaction Time,Ticket Status,Transaction Description,Ticket Type,Extended By,Reason
+Sears Lot,S001,8ABC123,20,06/01/2026 10:15 AM,,06/01/2026 10:15 AM,Open,,Regular,,
+Sears Lot,S002,7XYZ999,25,06/01/2026 11:05 AM,06/01/2026 1:05 PM,06/01/2026 1:05 PM,Closed,,Regular,,
+Sears Lot,S003,8ABC123,10,06/01/2026 12:00 PM,,06/01/2026 12:00 PM,Open,Extension,Extension,S001,extension purchase
+Main Lot,M001,9CAR111,18,06/01/2026 9:15 AM,,06/01/2026 9:15 AM,Open,,Regular,,
+Main Lot,M002,2TEST22,22,06/01/2026 1:15 PM,,06/01/2026 1:15 PM,Open,,Regular,,

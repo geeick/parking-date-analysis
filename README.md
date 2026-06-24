@@ -1,35 +1,27 @@
-# Run the app
-python -m http.server 8000
+# Parking Date Analysis
 
-# Safety Park Hourly Entry Dashboard v4
+Static HTML/CSS/JS dashboard for Safety Park CSV analysis.
 
-This is a GitHub Pages-ready static dashboard. It runs entirely in the browser with HTML, CSS, and JavaScript.
+## Run locally
 
-## What changed in v4
+```powershell
+python no_cache_server.py
+```
 
-- Controls moved to a right-side panel so the graph stays centered.
-- The Generate Graph button was removed. Charts update automatically.
-- Parking lot selection now supports:
-  - all lots
-  - one lot
-  - multiple selected lots
-  - selecting every visible lot after searching
-- The parser still supports Safety Park CSV reports that start with a title row before the real headers.
+Open:
 
-## How to run locally
+```text
+http://localhost:8000/index.html?v=120
+```
 
-1. Unzip the folder.
-2. Open `index.html` in your browser.
-3. Upload a Safety Park CSV.
+## Files
 
-## How to use multi-lot selection
+- `index.html` - page layout
+- `style.css` - styles
+- `app.js` - CSV parsing, hourly graphs, and current open-ticket counting
+- `sample_open_tickets.csv` - small test file
+- `no_cache_server.py` - local no-cache server for development
 
-1. Upload your CSV.
-2. In the right controls panel, click **Choose lots**.
-3. Search for a lot, for example `155` or `Arbor`.
-4. Check as many lots as you want.
-5. The chart updates automatically.
+## Open ticket logic
 
-## GitHub Pages
-
-Upload `index.html` to your repository and enable GitHub Pages from Settings → Pages.
+The "Cars in lots right now" page counts rows as open tickets when there is no exit time and the ticket status is not closed/canceled/void/refunded. Extension rows are ignored when `Extended By` is filled or when transaction description, ticket type, or reason mentions extension/extend/renewal.
