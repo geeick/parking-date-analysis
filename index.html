@@ -1,0 +1,1296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Safety Park Hourly Entry Dashboard v4</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+  <style>
+    :root {
+      --bg: #f4f7fb;
+      --card: #ffffff;
+      --text: #08111f;
+      --muted: #64748b;
+      --border: #d9e2ef;
+      --blue: #2563eb;
+      --blue-dark: #1d4ed8;
+      --blue-soft: #eff5ff;
+      --green: #0f766e;
+      --red: #b91c1c;
+      --red-soft: #fff1f2;
+      --shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
+      --radius: 22px;
+      --sidebar: 370px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.45;
+    }
+
+    .page {
+      width: min(1500px, calc(100vw - 28px));
+      margin: 18px auto 42px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 22px;
+      align-items: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--blue);
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(34px, 4vw, 56px);
+      line-height: 1.02;
+      letter-spacing: -0.055em;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: var(--muted);
+      font-size: 16px;
+    }
+
+    .version-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 14px;
+      padding: 7px 12px;
+      background: var(--blue-soft);
+      color: var(--blue-dark);
+      border: 1px solid #bdd0ff;
+      border-radius: 999px;
+      font-weight: 850;
+      font-size: 12px;
+    }
+
+    .upload-box {
+      position: relative;
+      display: grid;
+      place-items: center;
+      min-height: 132px;
+      border: 2px dashed #9bb8ff;
+      border-radius: 20px;
+      background: #f0f5ff;
+      color: var(--blue-dark);
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.14s ease, background 0.14s ease, border-color 0.14s ease;
+    }
+
+    .upload-box:hover,
+    .upload-box.dragging {
+      transform: translateY(-1px);
+      background: #e7efff;
+      border-color: var(--blue);
+    }
+
+    .upload-box input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-title {
+      display: block;
+      font-size: 22px;
+      font-weight: 950;
+      letter-spacing: 0.03em;
+    }
+
+    .upload-subtitle {
+      display: block;
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .status-card {
+      margin-top: 14px;
+      padding: 14px 18px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .status-card.success { background: #ecfdf5; border-color: #99f6e4; color: var(--green); }
+    .status-card.error { background: var(--red-soft); border-color: #fecdd3; color: var(--red); }
+    .status-card.warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+
+    .hidden { display: none !important; }
+
+    .dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--sidebar);
+      gap: 18px;
+      align-items: start;
+      margin-top: 18px;
+    }
+
+    .main-panel,
+    .side-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .main-panel { padding: 16px; min-width: 0; }
+
+    .side-panel {
+      position: sticky;
+      top: 14px;
+      max-height: calc(100vh - 28px);
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .side-panel::before {
+      position: absolute;
+      top: 22px;
+      left: -39px;
+      transform: rotate(-90deg);
+      transform-origin: center;
+      background: var(--blue);
+      color: white;
+      border-radius: 12px 12px 0 0;
+      padding: 6px 14px;
+      font-size: 12px;
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .side-title {
+      margin: 0 0 6px;
+      font-size: 24px;
+      letter-spacing: -0.035em;
+    }
+
+    .side-hint {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .control-group {
+      padding: 14px 0;
+      border-top: 1px solid var(--border);
+    }
+    .control-group:first-of-type { border-top: 0; padding-top: 0; }
+
+    .control-label {
+      display: block;
+      margin-bottom: 8px;
+      color: #334155;
+      font-size: 13px;
+      font-weight: 950;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    select,
+    input[type="date"],
+    input[type="text"] {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      color: var(--text);
+      padding: 0 14px;
+      font: inherit;
+      font-weight: 700;
+      outline: none;
+    }
+
+    select:focus,
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+    }
+
+    button {
+      border: 0;
+      border-radius: 16px;
+      min-height: 48px;
+      padding: 0 16px;
+      font: inherit;
+      font-weight: 950;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.12s ease, background 0.12s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .secondary-btn {
+      background: #eaf0f8;
+      color: #0f172a;
+      border: 1px solid #d6dfeb;
+    }
+
+    .secondary-btn.active {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+
+    .tiny-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .tiny-actions button {
+      min-height: 42px;
+      font-size: 13px;
+      border-radius: 14px;
+    }
+
+    .selected-summary {
+      margin: 10px 0;
+      padding: 11px 12px;
+      border-radius: 14px;
+      background: #f8fafc;
+      color: #334155;
+      border: 1px solid var(--border);
+      font-weight: 750;
+      font-size: 13px;
+    }
+
+    .location-picker { margin-top: 12px; }
+
+    .lot-list {
+      display: grid;
+      gap: 8px;
+      max-height: 280px;
+      overflow: auto;
+      padding: 2px 2px 8px;
+    }
+
+    .lot-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 42px;
+      padding: 9px 10px;
+      border-radius: 13px;
+      border: 1px solid #e2e8f0;
+      background: #f8fafc;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .lot-row input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--blue);
+      flex: 0 0 auto;
+    }
+
+    .empty-list {
+      padding: 12px;
+      color: var(--muted);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .date-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .toggle-stack {
+      display: grid;
+      gap: 9px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-height: 52px;
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #f8fafc;
+      color: #0f172a;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 900;
+      user-select: none;
+    }
+
+    .toggle input {
+      width: 20px;
+      height: 20px;
+      accent-color: var(--blue);
+      flex: 0 0 auto;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 14px;
+      background: #fbfdff;
+    }
+
+    .metric-label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 950;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .metric-value {
+      display: block;
+      margin-top: 3px;
+      font-size: 24px;
+      font-weight: 950;
+      letter-spacing: -0.04em;
+    }
+
+    .chart-wrap {
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: white;
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    #chart { width: 100%; min-height: 640px; }
+
+    .chart-topline {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      margin: 2px 2px 10px;
+    }
+
+    .chart-title {
+      margin: 0;
+      font-size: 26px;
+      letter-spacing: -0.04em;
+    }
+
+    .chart-note {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .mini-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 9px;
+      flex: 0 0 auto;
+    }
+
+    .mini-actions button {
+      min-height: 42px;
+      padding: 0 13px;
+      border-radius: 14px;
+      font-size: 13px;
+    }
+
+    details {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      background: #fbfdff;
+      padding: 12px 14px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-weight: 950;
+      color: #334155;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      overflow: auto;
+      color: #334155;
+      background: #f8fafc;
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1120px) {
+      .dashboard { grid-template-columns: 1fr; }
+      .side-panel { position: static; max-height: none; order: -1; }
+      .side-panel::before { display: none; }
+      .hero { grid-template-columns: 1fr; }
+      .metrics { grid-template-columns: 1fr 1fr; }
+    }
+
+    @media (max-width: 620px) {
+      .page { width: min(100vw - 18px, 1500px); margin-top: 9px; }
+      .hero, .main-panel, .side-panel { border-radius: 18px; padding: 18px; }
+      .segmented, .tiny-actions, .metrics { grid-template-columns: 1fr; }
+      .chart-topline { flex-direction: column; }
+      #chart { min-height: 530px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Safety Park Analysis</p>
+        <h1>Hourly Car Entry Dashboard</h1>
+        <p class="subtitle">Upload a CSV. The graph updates automatically when you change filters.</p>
+        <span class="version-pill">v4 · right-side controls · real multi-lot selection</span>
+      </div>
+
+      <label class="upload-box" id="dropZone">
+        <input id="fileInput" type="file" accept=".csv,text/csv" />
+        <span>
+          <span class="upload-title">Upload CSV</span>
+          <span class="upload-subtitle">or drag it here</span>
+        </span>
+      </label>
+    </section>
+
+    <div id="statusCard" class="status-card">No CSV loaded yet.</div>
+
+    <section id="dashboard" class="dashboard hidden">
+      <section id="results" class="main-panel">
+        <div class="metrics">
+          <div class="metric"><span class="metric-label">Matching entries</span><span id="metricEntries" class="metric-value">--</span></div>
+          <div class="metric"><span class="metric-label">Active dates</span><span id="metricDates" class="metric-value">--</span></div>
+          <div class="metric"><span class="metric-label">Peak hour</span><span id="metricPeak" class="metric-value">--</span></div>
+          <div class="metric"><span class="metric-label">Avg. paid</span><span id="metricPaid" class="metric-value">--</span></div>
+        </div>
+
+        <div class="chart-wrap">
+          <div class="chart-topline">
+            <div>
+              <h2 id="chartTitle" class="chart-title">Hourly entries</h2>
+              <p id="chartNote" class="chart-note"></p>
+            </div>
+            <div class="mini-actions">
+              <button id="downloadPngBtn" class="secondary-btn" type="button">Download PNG</button>
+              <button id="downloadCsvBtn" class="secondary-btn" type="button">Download summary CSV</button>
+            </div>
+          </div>
+          <div id="chart"></div>
+        </div>
+
+        <details>
+          <summary>Parser details</summary>
+          <pre id="diagnostics">No parser details yet.</pre>
+        </details>
+      </section>
+
+      <aside id="controls" class="side-panel">
+        <h2 class="side-title">Controls</h2>
+
+        <div class="control-group">
+          <span class="control-label">Parking lots</span>
+          <div class="segmented">
+            <button id="selectAllLocations" class="secondary-btn active" type="button">All lots</button>
+            <button id="customLocations" class="secondary-btn" type="button">Choose lots</button>
+          </div>
+          <div id="locationSummary" class="selected-summary">All parking lots included.</div>
+
+          <div id="locationPicker" class="location-picker hidden">
+            <input id="locationSearch" type="text" placeholder="Search 155, Arbor, Beverly..." />
+            <div class="tiny-actions">
+              <button id="selectVisibleLocations" class="secondary-btn" type="button">Select visible</button>
+              <button id="clearLocations" class="secondary-btn" type="button">Clear</button>
+            </div>
+            <div id="locationList" class="lot-list" aria-label="Parking lot selection"></div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <label class="control-label" for="dateMode">Dates</label>
+          <div class="date-grid">
+            <select id="dateMode">
+              <option value="all">All dates</option>
+              <option value="specific">Specific date</option>
+              <option value="range">Date range</option>
+            </select>
+            <div id="specificDateWrap">
+              <label class="control-label" for="specificDate">Specific date</label>
+              <input id="specificDate" type="date" />
+            </div>
+            <div id="startDateWrap">
+              <label class="control-label" for="startDate">Start date</label>
+              <input id="startDate" type="date" />
+            </div>
+            <div id="endDateWrap">
+              <label class="control-label" for="endDate">End date</label>
+              <input id="endDate" type="date" />
+            </div>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-label">Graph options</span>
+          <div class="toggle-stack">
+            <label class="toggle"><input id="compareYears" type="checkbox" /> Compare years</label>
+            <label class="toggle"><input id="sameDatesOnly" type="checkbox" /> Same dates only</label>
+            <label class="toggle"><input id="weekdayVariation" type="checkbox" /> Day of week variation</label>
+            <label class="toggle"><input id="scatterValues" type="checkbox" /> Show scatter values</label>
+            <label class="toggle"><input id="priceLabels" type="checkbox" /> Average price labels</label>
+          </div>
+        </div>
+      </aside>
+    </section>
+  <script>
+    const HOURS = Array.from({ length: 24 }, (_, i) => i);
+    const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    const state = {
+      fileName: "",
+      rawRows: [],
+      records: [],
+      columns: {},
+      lastAggregatedRows: [],
+      locations: [],
+      allLocations: true,
+      selectedLocations: new Set(),
+      diagnostics: ""
+    };
+
+    const els = {
+      fileInput: document.getElementById("fileInput"),
+      dropZone: document.getElementById("dropZone"),
+      statusCard: document.getElementById("statusCard"),
+      dashboard: document.getElementById("dashboard"),
+      controls: document.getElementById("controls"),
+      results: document.getElementById("results"),
+      diagnostics: document.getElementById("diagnostics"),
+      locationSummary: document.getElementById("locationSummary"),
+      locationSearch: document.getElementById("locationSearch"),
+      locationList: document.getElementById("locationList"),
+      selectAllLocations: document.getElementById("selectAllLocations"),
+      customLocations: document.getElementById("customLocations"),
+      clearLocations: document.getElementById("clearLocations"),
+      selectVisibleLocations: document.getElementById("selectVisibleLocations"),
+      locationPicker: document.getElementById("locationPicker"),
+      dateMode: document.getElementById("dateMode"),
+      specificDateWrap: document.getElementById("specificDateWrap"),
+      specificDate: document.getElementById("specificDate"),
+      startDateWrap: document.getElementById("startDateWrap"),
+      startDate: document.getElementById("startDate"),
+      endDateWrap: document.getElementById("endDateWrap"),
+      endDate: document.getElementById("endDate"),
+      compareYears: document.getElementById("compareYears"),
+      sameDatesOnly: document.getElementById("sameDatesOnly"),
+      weekdayVariation: document.getElementById("weekdayVariation"),
+      scatterValues: document.getElementById("scatterValues"),
+      priceLabels: document.getElementById("priceLabels"),
+      chartTitle: document.getElementById("chartTitle"),
+      chartNote: document.getElementById("chartNote"),
+      chart: document.getElementById("chart"),
+      metricEntries: document.getElementById("metricEntries"),
+      metricDates: document.getElementById("metricDates"),
+      metricPeak: document.getElementById("metricPeak"),
+      metricPaid: document.getElementById("metricPaid"),
+      downloadPngBtn: document.getElementById("downloadPngBtn"),
+      downloadCsvBtn: document.getElementById("downloadCsvBtn")
+    };
+
+    function cleanCell(value) {
+      return String(value ?? "")
+        .replace(/^\uFEFF/, "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
+    }
+
+    function normalizeHeader(value) {
+      return cleanCell(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+    }
+
+    function showStatus(message, type = "success") {
+      els.statusCard.textContent = message;
+      els.statusCard.className = `status-card ${type}`;
+    }
+
+    function updateDiagnostics(text) {
+      state.diagnostics = text;
+      els.diagnostics.textContent = text || "No parser details yet.";
+    }
+
+    function uniqueHeaders(headers) {
+      const counts = new Map();
+      return headers.map((header, index) => {
+        const cleaned = cleanCell(header) || `Column ${index + 1}`;
+        const count = counts.get(cleaned) || 0;
+        counts.set(cleaned, count + 1);
+        return count === 0 ? cleaned : `${cleaned} ${count + 1}`;
+      });
+    }
+
+    function findColumn(headers, candidates) {
+      const normalized = headers.map(h => ({ raw: h, compact: normalizeHeader(h) }));
+      const candidateCompacts = candidates.map(normalizeHeader);
+
+      for (const candidate of candidateCompacts) {
+        const exact = normalized.find(h => h.compact === candidate);
+        if (exact) return exact.raw;
+      }
+
+      for (const item of normalized) {
+        if (candidateCompacts.some(candidate => item.compact.includes(candidate))) return item.raw;
+      }
+
+      return null;
+    }
+
+    function scoreHeaderRow(headers) {
+      let score = 0;
+      const location = findColumn(headers, ["Location", "Parking Lot", "Lot", "Lot Name", "Location Name", "parking_lot", "location_name"]);
+      const entry = findColumn(headers, ["Entry Time", "Entry Date", "Entry Date Time", "Entry Datetime", "Entered At", "Entered", "Time Entered", "Date Entered", "entry_time", "entry_datetime"]);
+      const amount = findColumn(headers, ["Amount", "Total", "Paid", "Price", "Average Paid", "Payment Amount", "amount_paid", "transaction_amount"]);
+      const payment = findColumn(headers, ["Transaction Time", "Payment Time", "Paid Time", "Transaction Date", "transaction_time", "payment_time"]);
+      const ticket = findColumn(headers, ["Ticket#", "Ticket", "Ticket Number", "License Plate No."]);
+
+      if (location) score += 3;
+      if (entry) score += 10;
+      if (amount) score += 2;
+      if (payment) score += 1;
+      if (ticket) score += 1;
+      if (headers.length >= 8) score += 1;
+
+      return { score, location, entry, amount, payment };
+    }
+
+    function findHeaderRow(table) {
+      const maxScan = Math.min(table.length, 50);
+      let best = { index: -1, score: -1, headers: [], detected: {} };
+
+      for (let i = 0; i < maxScan; i++) {
+        const row = (table[i] || []).map(cleanCell);
+        const nonEmpty = row.filter(Boolean).length;
+        if (nonEmpty < 3) continue;
+
+        const headers = uniqueHeaders(row);
+        const detected = scoreHeaderRow(headers);
+        if (detected.score > best.score) best = { index: i, score: detected.score, headers, detected };
+      }
+
+      return best.score >= 10 ? best : null;
+    }
+
+    function tableToObjects(table, headerInfo) {
+      const headers = headerInfo.headers;
+      const rows = [];
+
+      for (let i = headerInfo.index + 1; i < table.length; i++) {
+        const rowArray = table[i] || [];
+        if (!rowArray.some(cell => cleanCell(cell) !== "")) continue;
+
+        const row = {};
+        for (let j = 0; j < headers.length; j++) row[headers[j]] = cleanCell(rowArray[j]);
+        rows.push(row);
+      }
+
+      return rows;
+    }
+
+    function parseDate(value) {
+      const s = cleanCell(value);
+      if (!s) return null;
+
+      const slash = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:\s+(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*(AM|PM)?)?/i);
+      if (slash) {
+        let [, mm, dd, yyyy, hh = "0", min = "0", ampm] = slash;
+        const year = Number(yyyy.length === 2 ? `20${yyyy}` : yyyy);
+        let hour = Number(hh);
+        if (ampm) {
+          const upper = ampm.toUpperCase();
+          if (upper === "PM" && hour !== 12) hour += 12;
+          if (upper === "AM" && hour === 12) hour = 0;
+        }
+        const date = new Date(year, Number(mm) - 1, Number(dd), hour, Number(min), 0, 0);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      const isoish = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s]+(\d{1,2})(?::(\d{2}))?)?/);
+      if (isoish) {
+        const [, yyyy, mm, dd, hh = "0", min = "0"] = isoish;
+        const date = new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min), 0, 0);
+        return Number.isNaN(date.getTime()) ? null : date;
+      }
+
+      const direct = new Date(s);
+      return Number.isNaN(direct.getTime()) ? null : direct;
+    }
+
+    function toDateKey(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function toMonthDay(date) {
+      return `${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    }
+
+    function toNumber(value) {
+      const cleaned = cleanCell(value).replace(/[$,]/g, "");
+      if (!cleaned) return null;
+      const num = Number(cleaned);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      state.fileName = file.name;
+      showStatus(`Reading ${file.name}...`, "success");
+
+      if (typeof Papa === "undefined") {
+        showStatus("Papa Parse did not load. Make sure you are connected to the internet, then refresh and try again.", "error");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onerror = () => showStatus("Could not read that file. Try downloading the CSV again.", "error");
+      reader.onload = () => parseCsvText(String(reader.result || ""), file.name);
+      reader.readAsText(file);
+    }
+
+    function parseCsvText(text, fileName) {
+      const preview = text.split(/\r?\n/).slice(0, 5).join("\n");
+      const parsed = Papa.parse(text, {
+        header: false,
+        skipEmptyLines: "greedy",
+        dynamicTyping: false,
+        transform: value => cleanCell(value)
+      });
+
+      const table = parsed.data || [];
+      const headerInfo = findHeaderRow(table);
+      const parseErrors = parsed.errors || [];
+
+      if (!headerInfo) {
+        const scanned = table.slice(0, 8).map((row, i) => `${i + 1}: ${(row || []).map(cleanCell).join(" | ")}`).join("\n");
+        updateDiagnostics(`File: ${fileName}\nRows parsed: ${table.length}\nCould not detect header row.\n\nFirst parsed rows:\n${scanned}\n\nRaw preview:\n${preview}\n\nPapa errors:\n${parseErrors.map(e => e.message).join("\n") || "None"}`);
+        showStatus("I still could not find the Entry Time header. Open Parser details below and send me what it says.", "error");
+        return;
+      }
+
+      const rows = tableToObjects(table, headerInfo);
+      const headers = headerInfo.headers;
+      const locationCol = findColumn(headers, ["Location", "Parking Lot", "Lot", "Lot Name", "Location Name", "parking_lot", "location_name"]);
+      const entryTimeCol = findColumn(headers, ["Entry Time", "Entry Date", "Entry Date Time", "Entry Datetime", "Entered At", "Entered", "Time Entered", "Date Entered", "entry_time", "entry_datetime"]);
+      const amountCol = findColumn(headers, ["Amount", "Total", "Paid", "Price", "Average Paid", "Payment Amount", "amount_paid", "transaction_amount"]);
+      const paymentTimeCol = findColumn(headers, ["Transaction Time", "Payment Time", "Paid Time", "Transaction Date", "transaction_time", "payment_time"]);
+
+      updateDiagnostics(`File: ${fileName}\nRows parsed: ${table.length}\nData rows: ${rows.length}\nHeader row detected on line: ${headerInfo.index + 1}\nHeader score: ${headerInfo.score}\n\nDetected columns:\nLocation: ${locationCol || "Not found"}\nEntry time: ${entryTimeCol || "Not found"}\nAmount: ${amountCol || "Not found"}\nPayment time: ${paymentTimeCol || "Not found"}\n\nHeaders found:\n${headers.join("\n")}\n\nRaw preview:\n${preview}\n\nPapa warnings/errors:\n${parseErrors.map(e => e.message).join("\n") || "None"}`);
+
+      if (!entryTimeCol) {
+        showStatus("I found a header row, but not an Entry Time column. Open Parser details below and send me the detected headers.", "error");
+        return;
+      }
+
+      loadRows(rows, { locationCol, entryTimeCol, amountCol, paymentTimeCol }, fileName, headerInfo.index + 1);
+    }
+
+    function loadRows(rows, columns, fileName, headerLineNumber) {
+      state.columns = columns;
+      state.rawRows = rows;
+      state.records = rows.map((row, index) => {
+        const entryDate = parseDate(row[columns.entryTimeCol]);
+        if (!entryDate) return null;
+
+        const amount = columns.amountCol ? toNumber(row[columns.amountCol]) : null;
+        const paymentDate = columns.paymentTimeCol ? parseDate(row[columns.paymentTimeCol]) : null;
+        const location = columns.locationCol ? cleanCell(row[columns.locationCol]) : "All imported data";
+
+        return {
+          rowIndex: index,
+          location: location || "Unknown Location",
+          entryDateObj: entryDate,
+          entryDate: toDateKey(entryDate),
+          entryHour: entryDate.getHours(),
+          year: entryDate.getFullYear(),
+          month: entryDate.getMonth() + 1,
+          monthName: MONTH_NAMES[entryDate.getMonth()],
+          monthDay: toMonthDay(entryDate),
+          weekday: WEEKDAYS[entryDate.getDay()],
+          weekdayIndex: entryDate.getDay(),
+          amount,
+          paymentDateObj: paymentDate,
+          paymentHour: paymentDate ? paymentDate.getHours() : null
+        };
+      }).filter(Boolean);
+
+      if (!state.records.length) {
+        showStatus("The file loaded, but none of the Entry Time values could be parsed as dates.", "error");
+        return;
+      }
+
+      populateFilters();
+      els.dashboard.classList.remove("hidden");
+      els.controls.classList.remove("hidden");
+      els.results.classList.remove("hidden");
+
+      const detected = [`entry: ${columns.entryTimeCol}`];
+      if (columns.locationCol) detected.push(`location: ${columns.locationCol}`);
+      if (columns.amountCol) detected.push(`amount: ${columns.amountCol}`);
+      showStatus(`Loaded ${state.records.length.toLocaleString()} entries from ${fileName}. Header row detected on line ${headerLineNumber}. Detected ${detected.join(", ")}.`, "success");
+      generateChart();
+    }
+
+    function populateFilters() {
+      state.locations = [...new Set(state.records.map(r => r.location))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+      state.allLocations = true;
+      state.selectedLocations = new Set();
+      els.locationSearch.value = "";
+      renderLocationButtons();
+
+      const dates = [...new Set(state.records.map(r => r.entryDate))].sort();
+      const minDate = dates[0];
+      const maxDate = dates[dates.length - 1];
+      for (const input of [els.specificDate, els.startDate, els.endDate]) {
+        input.min = minDate;
+        input.max = maxDate;
+      }
+      els.specificDate.value = maxDate;
+      els.startDate.value = minDate;
+      els.endDate.value = maxDate;
+      setDateModeVisibility();
+    }
+
+    function escapeHtml(value) {
+      return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+    }
+
+    function renderLocationButtons() {
+      const query = els.locationSearch.value.trim().toLowerCase();
+      const visibleLocations = state.locations.filter(location => location.toLowerCase().includes(query));
+
+      els.selectAllLocations.classList.toggle("active", state.allLocations);
+      els.customLocations.classList.toggle("active", !state.allLocations);
+      els.locationPicker.classList.toggle("hidden", state.allLocations);
+      els.clearLocations.disabled = state.allLocations || state.selectedLocations.size === 0;
+
+      if (state.allLocations) {
+        els.locationSummary.textContent = `All parking lots included (${state.locations.length.toLocaleString()} lot${state.locations.length === 1 ? "" : "s"}).`;
+      } else if (state.selectedLocations.size === 0) {
+        els.locationSummary.textContent = "Custom mode is on. Select one or more parking lots.";
+      } else if (state.selectedLocations.size === 1) {
+        els.locationSummary.textContent = `Selected: ${[...state.selectedLocations][0]}`;
+      } else {
+        const preview = [...state.selectedLocations].slice(0, 3).join(", ");
+        const extra = state.selectedLocations.size > 3 ? ` +${state.selectedLocations.size - 3} more` : "";
+        els.locationSummary.textContent = `${state.selectedLocations.size} parking lots selected: ${preview}${extra}`;
+      }
+
+      if (!visibleLocations.length) {
+        els.locationList.innerHTML = `<div class="empty-list">No lots match your search.</div>`;
+        return;
+      }
+
+      els.locationList.innerHTML = visibleLocations.map(location => {
+        const index = state.locations.indexOf(location);
+        const selected = !state.allLocations && state.selectedLocations.has(location);
+        return `
+          <label class="lot-row">
+            <input type="checkbox" data-location-index="${index}" ${selected ? "checked" : ""} />
+            <span>${escapeHtml(location)}</span>
+          </label>`;
+      }).join("");
+    }
+
+    function selectAllLocations() {
+      state.allLocations = true;
+      state.selectedLocations.clear();
+      renderLocationButtons();
+      generateChartIfReady();
+    }
+
+    function chooseCustomLocations() {
+      state.allLocations = false;
+      renderLocationButtons();
+      generateChartIfReady();
+    }
+
+    function clearLocations() {
+      state.allLocations = false;
+      state.selectedLocations.clear();
+      renderLocationButtons();
+      generateChartIfReady();
+    }
+
+    function selectVisibleLocations() {
+      const query = els.locationSearch.value.trim().toLowerCase();
+      const visibleLocations = state.locations.filter(location => location.toLowerCase().includes(query));
+      state.allLocations = false;
+      for (const location of visibleLocations) state.selectedLocations.add(location);
+      renderLocationButtons();
+      generateChartIfReady();
+    }
+
+    function toggleLocation(location) {
+      state.allLocations = false;
+      if (state.selectedLocations.has(location)) {
+        state.selectedLocations.delete(location);
+      } else {
+        state.selectedLocations.add(location);
+      }
+      renderLocationButtons();
+      generateChartIfReady();
+    }
+
+    function setDateModeVisibility() {
+      const mode = els.dateMode.value;
+      els.specificDateWrap.classList.toggle("hidden", mode !== "specific");
+      els.startDateWrap.classList.toggle("hidden", mode !== "range");
+      els.endDateWrap.classList.toggle("hidden", mode !== "range");
+    }
+
+    function getFilteredRecords() {
+      let records = [...state.records];
+
+      if (!state.allLocations) records = records.filter(r => state.selectedLocations.has(r.location));
+
+      const mode = els.dateMode.value;
+      if (mode === "specific" && els.specificDate.value) {
+        records = records.filter(r => r.entryDate === els.specificDate.value);
+      } else if (mode === "range") {
+        const start = els.startDate.value || "0000-01-01";
+        const end = els.endDate.value || "9999-12-31";
+        records = records.filter(r => r.entryDate >= start && r.entryDate <= end);
+      }
+
+      if (els.compareYears.checked && els.sameDatesOnly.checked && !els.weekdayVariation.checked) {
+        records = filterToSameMonthDaysAcrossYears(records);
+      }
+
+      return records;
+    }
+
+    function filterToSameMonthDaysAcrossYears(records) {
+      const years = [...new Set(records.map(r => r.year))];
+      if (years.length < 2) return records;
+
+      const monthDaysByYear = new Map();
+      for (const year of years) {
+        monthDaysByYear.set(year, new Set(records.filter(r => r.year === year).map(r => r.monthDay)));
+      }
+
+      let common = null;
+      for (const set of monthDaysByYear.values()) {
+        common = common === null ? new Set(set) : new Set([...common].filter(md => set.has(md)));
+      }
+
+      return records.filter(r => common.has(r.monthDay));
+    }
+
+    function groupKeyForRecord(record) {
+      if (els.weekdayVariation.checked) return record.weekday;
+      if (els.compareYears.checked) return String(record.year);
+      return "Average";
+    }
+
+    function groupSort(groups) {
+      if (els.weekdayVariation.checked) {
+        const order = new Map(WEEKDAYS.map((day, i) => [day, i]));
+        return groups.sort((a, b) => order.get(a) - order.get(b));
+      }
+      if (els.compareYears.checked) return groups.sort((a, b) => Number(a) - Number(b));
+      return groups;
+    }
+
+    function aggregate(records) {
+      const dateHourCounts = new Map();
+      const datesByGroup = new Map();
+      const pricesByGroupHour = new Map();
+
+      for (const record of records) {
+        const group = groupKeyForRecord(record);
+        const dateHourKey = `${group}|${record.entryDate}|${record.entryHour}`;
+        dateHourCounts.set(dateHourKey, (dateHourCounts.get(dateHourKey) || 0) + 1);
+
+        if (!datesByGroup.has(group)) datesByGroup.set(group, new Set());
+        datesByGroup.get(group).add(record.entryDate);
+
+        if (record.amount !== null) {
+          const priceKey = `${group}|${record.entryHour}`;
+          if (!pricesByGroupHour.has(priceKey)) pricesByGroupHour.set(priceKey, []);
+          pricesByGroupHour.get(priceKey).push(record.amount);
+        }
+      }
+
+      const groups = groupSort([...datesByGroup.keys()]);
+      const lineRows = [];
+      const scatterRows = [];
+
+      for (const group of groups) {
+        const dates = [...datesByGroup.get(group)].sort();
+        for (const hour of HOURS) {
+          let total = 0;
+          for (const date of dates) {
+            const count = dateHourCounts.get(`${group}|${date}|${hour}`) || 0;
+            total += count;
+            if (count > 0) scatterRows.push({ group, date, hour, count });
+          }
+
+          const prices = pricesByGroupHour.get(`${group}|${hour}`) || [];
+          lineRows.push({
+            group,
+            hour,
+            avgCars: dates.length ? total / dates.length : 0,
+            activeDates: dates.length,
+            avgPaid: prices.length ? average(prices) : null
+          });
+        }
+      }
+
+      return { groups, lineRows, scatterRows };
+    }
+
+    function average(values) {
+      return values.reduce((sum, value) => sum + value, 0) / values.length;
+    }
+
+    function formatMoney(value) {
+      if (value === null || !Number.isFinite(value)) return "--";
+      return `$${Math.round(value).toLocaleString()}`;
+    }
+
+    function generateChartIfReady() {
+      if (state.records.length) generateChart();
+    }
+
+    function generateChart() {
+      if (typeof Plotly === "undefined") {
+        showStatus("Plotly did not load. Make sure you are connected to the internet, then refresh and try again.", "error");
+        return;
+      }
+
+      const records = getFilteredRecords();
+      if (!records.length) {
+        showStatus("No rows match the selected filters. Choose at least one parking lot or change the date filter.", "error");
+        Plotly.purge(els.chart);
+        state.lastAggregatedRows = [];
+        return;
+      }
+
+      showStatus(`${records.length.toLocaleString()} rows match the selected filters.`, "success");
+
+      const { groups, lineRows, scatterRows } = aggregate(records);
+      state.lastAggregatedRows = lineRows;
+
+      updateMetrics(records, lineRows);
+      updateTitle(records, groups);
+
+      const traces = [];
+      if (els.scatterValues.checked) {
+        for (const group of groups) {
+          const rows = scatterRows.filter(row => row.group === group);
+          traces.push({
+            x: rows.map(row => row.hour),
+            y: rows.map(row => row.count),
+            text: rows.map(row => `${row.date}<br>${group}`),
+            mode: "markers",
+            type: "scatter",
+            name: groups.length === 1 ? "Actual date-hour counts" : `${group} actual counts`,
+            marker: { size: 8, opacity: 0.24 },
+            hovertemplate: "%{text}<br>Hour %{x}<br>Cars entered: %{y}<extra></extra>"
+          });
+        }
+      }
+
+      const canShowTextLabels = els.priceLabels.checked && groups.length <= 2;
+      const tooManyPriceLabels = els.priceLabels.checked && groups.length > 2;
+
+      for (const group of groups) {
+        const rows = lineRows.filter(row => row.group === group);
+        const priceText = rows.map(row => row.avgPaid === null ? "" : formatMoney(row.avgPaid));
+        traces.push({
+          x: rows.map(row => row.hour),
+          y: rows.map(row => Number(row.avgCars.toFixed(3))),
+          customdata: rows.map(row => [row.activeDates, row.avgPaid === null ? "--" : formatMoney(row.avgPaid)]),
+          mode: canShowTextLabels ? "lines+markers+text" : "lines+markers",
+          type: "scatter",
+          name: group,
+          text: canShowTextLabels ? priceText : undefined,
+          textposition: "top center",
+          line: { width: 3 },
+          marker: { size: 9 },
+          hovertemplate: "Hour %{x}<br>Average cars: %{y}<br>Active dates: %{customdata[0]}<br>Avg. paid: %{customdata[1]}<extra>%{fullData.name}</extra>"
+        });
+      }
+
+      const yCandidates = [...lineRows.map(row => row.avgCars), ...scatterRows.map(row => row.count)];
+      const yMax = Math.max(5, ...yCandidates) * 1.16;
+
+      const layout = {
+        margin: { l: 64, r: 28, t: 24, b: 76 },
+        height: 610,
+        paper_bgcolor: "white",
+        plot_bgcolor: "white",
+        hovermode: "closest",
+        legend: { orientation: "h", y: -0.23, x: 0 },
+        xaxis: { title: "Hour of Day", tickmode: "array", tickvals: HOURS, range: [-0.5, 23.5], gridcolor: "#e5e7eb", zeroline: false },
+        yaxis: { title: "Average Cars Entering", rangemode: "tozero", range: [0, yMax], gridcolor: "#e5e7eb", zeroline: false }
+      };
+
+      const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+      Plotly.newPlot(els.chart, traces, layout, config);
+
+      els.chartNote.textContent = tooManyPriceLabels
+        ? "Price labels are available in hover because this chart has many lines. This keeps it readable."
+        : buildNote(records);
+    }
+
+    function updateMetrics(records, lineRows) {
+      const dates = new Set(records.map(r => r.entryDate));
+      const amounts = records.map(r => r.amount).filter(v => v !== null);
+      const peak = [...lineRows].sort((a, b) => b.avgCars - a.avgCars)[0];
+
+      els.metricEntries.textContent = records.length.toLocaleString();
+      els.metricDates.textContent = dates.size.toLocaleString();
+      els.metricPeak.textContent = peak ? `${peak.hour}:00` : "--";
+      els.metricPaid.textContent = amounts.length ? formatMoney(average(amounts)) : "--";
+    }
+
+    function getLocationLabel() {
+      if (state.allLocations) return "All locations";
+      if (state.selectedLocations.size === 0) return "No locations";
+      if (state.selectedLocations.size === 1) return [...state.selectedLocations][0];
+      return `${state.selectedLocations.size} selected locations`;
+    }
+
+    function updateTitle(records, groups) {
+      let split = "Average hourly entries";
+      if (els.weekdayVariation.checked) split = "Hourly entries by day of week";
+      else if (els.compareYears.checked) split = "Hourly entries by year";
+
+      const dates = [...new Set(records.map(r => r.entryDate))].sort();
+      const dateText = dates.length === 1 ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`;
+      els.chartTitle.textContent = `${split} · ${getLocationLabel()}`;
+      els.chartTitle.title = `${dateText} · ${groups.length} group${groups.length === 1 ? "" : "s"}`;
+    }
+
+    function buildNote(records) {
+      const dates = [...new Set(records.map(r => r.entryDate))].sort();
+      const dateText = dates.length === 1 ? dates[0] : `${dates[0]} to ${dates[dates.length - 1]}`;
+      return `Each point is the average for that hour across ${dates.length.toLocaleString()} active date${dates.length === 1 ? "" : "s"}. Location filter: ${getLocationLabel()}. Date span: ${dateText}.`;
+    }
+
+    function downloadAggregatedCsv() {
+      if (!state.lastAggregatedRows.length) return;
+      const rows = state.lastAggregatedRows.map(row => ({
+        file_name: state.fileName,
+        location_filter: getLocationLabel(),
+        group: row.group,
+        hour: row.hour,
+        average_cars_entering: row.avgCars.toFixed(3),
+        active_dates: row.activeDates,
+        average_paid: row.avgPaid === null ? "" : row.avgPaid.toFixed(2)
+      }));
+      const csv = Papa.unparse(rows);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "hourly_entry_summary.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function wireEvents() {
+      els.fileInput.addEventListener("change", event => handleFile(event.target.files[0]));
+
+      els.dropZone.addEventListener("dragover", event => {
+        event.preventDefault();
+        els.dropZone.classList.add("dragging");
+      });
+      els.dropZone.addEventListener("dragleave", () => els.dropZone.classList.remove("dragging"));
+      els.dropZone.addEventListener("drop", event => {
+        event.preventDefault();
+        els.dropZone.classList.remove("dragging");
+        handleFile(event.dataTransfer.files[0]);
+      });
+
+      els.locationSearch.addEventListener("input", renderLocationButtons);
+      els.selectAllLocations.addEventListener("click", selectAllLocations);
+      els.customLocations.addEventListener("click", chooseCustomLocations);
+      els.clearLocations.addEventListener("click", clearLocations);
+      els.selectVisibleLocations.addEventListener("click", selectVisibleLocations);
+      els.locationList.addEventListener("change", event => {
+        const input = event.target.closest("input[data-location-index]");
+        if (!input) return;
+        const location = state.locations[Number(input.dataset.locationIndex)];
+        if (location) toggleLocation(location);
+      });
+
+      els.dateMode.addEventListener("change", () => { setDateModeVisibility(); generateChartIfReady(); });
+      for (const el of [els.specificDate, els.startDate, els.endDate, els.compareYears, els.sameDatesOnly, els.weekdayVariation, els.scatterValues, els.priceLabels]) {
+        el.addEventListener("change", generateChartIfReady);
+      }
+
+      els.downloadCsvBtn.addEventListener("click", downloadAggregatedCsv);
+      els.downloadPngBtn.addEventListener("click", () => {
+        Plotly.downloadImage(els.chart, { format: "png", filename: "hourly_entry_graph", width: 1600, height: 900, scale: 2 });
+      });
+    }
+
+    wireEvents();
+    setDateModeVisibility();
+  </script></body>
+</html>
+
+
