@@ -8,6 +8,7 @@ const state = {
   records: [],
   columns: {},
   lastAggregatedRows: [],
+  lastTicketTypeRows: [],
   locations: [],
   allLocations: true,
   selectedLocations: new Set(),
@@ -21,6 +22,7 @@ const els = {
   pageTabs: document.getElementById("pageTabs"),
   hourlyPageBtn: document.getElementById("hourlyPageBtn"),
   nowPageBtn: document.getElementById("nowPageBtn"),
+  typePageBtn: document.getElementById("typePageBtn"),
   dashboard: document.getElementById("dashboard"),
   controls: document.getElementById("controls"),
   results: document.getElementById("results"),
@@ -61,7 +63,19 @@ const els = {
   nowOldestOpen: document.getElementById("nowOldestOpen"),
   nowCsvWindow: document.getElementById("nowCsvWindow"),
   nowTableBody: document.getElementById("nowTableBody"),
-  downloadOpenTicketsBtn: document.getElementById("downloadOpenTicketsBtn")
+  downloadOpenTicketsBtn: document.getElementById("downloadOpenTicketsBtn"),
+  typePage: document.getElementById("typePage"),
+  typeTimeBasis: document.getElementById("typeTimeBasis"),
+  typeStart: document.getElementById("typeStart"),
+  typeEnd: document.getElementById("typeEnd"),
+  typeLocationFilter: document.getElementById("typeLocationFilter"),
+  typeTotalTickets: document.getElementById("typeTotalTickets"),
+  typeActiveTypes: document.getElementById("typeActiveTypes"),
+  typeTopType: document.getElementById("typeTopType"),
+  typeAvgPaid: document.getElementById("typeAvgPaid"),
+  typeChart: document.getElementById("typeChart"),
+  typeTableBody: document.getElementById("typeTableBody"),
+  downloadTicketTypesBtn: document.getElementById("downloadTicketTypesBtn")
 };
 
 function cleanCell(value) {
@@ -285,8 +299,9 @@ function detectColumns(headers) {
     ticketStatusCol: findColumn(headers, ["Ticket Status", "ticket_status"]),
     ticketCol: findColumn(headers, ["Ticket#", "Ticket", "Ticket Number", "ticket_number"]),
     licensePlateCol: findColumn(headers, ["License Plate No.", "License Plate", "Plate", "license_plate"]),
-    transactionDescriptionCol: findColumn(headers, ["Transaction Description", "Description", "transaction_description"]),
-    ticketTypeCol: findColumn(headers, ["Ticket Type", "ticket_type"]),
+    transactionDescriptionCol: findColumn(headers, ["Transaction Description", "Transaction Info", "Description", "transaction_description"]),
+    ticketTypeCol: findColumn(headers, ["Ticket Type", "Type", "ticket_type"]),
+    durationCol: findColumn(headers, ["Duration", "Duration(hh:mm)", "Duration (hh:mm)", "Parking Duration", "duration"]),
     extendedByCol: findColumn(headers, ["Extended By", "extended_by"]),
     reasonCol: findColumn(headers, ["Reason", "reason"])
   };
@@ -327,6 +342,7 @@ function loadRows(rows, columns, fileName, headerLineNumber) {
       licensePlate: columns.licensePlateCol ? cleanCell(row[columns.licensePlateCol]) : "",
       transactionDescription: columns.transactionDescriptionCol ? cleanCell(row[columns.transactionDescriptionCol]) : "",
       ticketType: columns.ticketTypeCol ? cleanCell(row[columns.ticketTypeCol]) : "",
+      durationRaw: columns.durationCol ? cleanCell(row[columns.durationCol]) : "",
       extendedBy: columns.extendedByCol ? cleanCell(row[columns.extendedByCol]) : "",
       reason: columns.reasonCol ? cleanCell(row[columns.reasonCol]) : ""
     };
@@ -343,6 +359,7 @@ function loadRows(rows, columns, fileName, headerLineNumber) {
   els.controls.classList.remove("hidden");
   els.results.classList.remove("hidden");
   populateNowLocationFilter();
+  populateTicketTypeFilters();
   showDashboardPage("hourly");
 
   const detected = [`entry: ${columns.entryTimeCol}`];
@@ -351,6 +368,7 @@ function loadRows(rows, columns, fileName, headerLineNumber) {
   showStatus(`Loaded ${state.records.length.toLocaleString()} entries from ${fileName}. Header row detected on line ${headerLineNumber}. Detected ${detected.join(", ")}.`, "success");
   generateChart();
   renderNowPage();
+  renderTicketTypePage();
 }
 
 function populateFilters() {
@@ -565,6 +583,7 @@ function generateChartIfReady() {
   if (state.records.length) {
     generateChart();
     renderNowPage();
+    renderTicketTypePage();
   }
 }
 
@@ -698,7 +717,7 @@ function downloadAggregatedCsv() {
 }
 
 function isExtensionRecord(record) {
-  const combined = [record.transactionDescription, record.ticketType, record.reason].join(" ").toLowerCase();
+  const combined = [record.transactionDescription, record.ticketType, record.durationRaw, record.reason].join(" ").toLowerCase();
   const extendedByFilled = cleanCell(record.extendedBy) !== "";
   return extendedByFilled || combined.includes("extension") || combined.includes("extend") || combined.includes("extended") || combined.includes("renewal");
 }
@@ -812,6 +831,211 @@ function downloadOpenTicketsCsv() {
   downloadCsv(rows, "open_tickets_right_now.csv");
 }
 
+
+function toDateTimeLocalValue(date) {
+  if (!date) return "";
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const hh = String(date.getHours()).padStart(2, "0");
+  const min = String(date.getMinutes()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+}
+
+function parseLocalDateTimeInput(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseDurationMinutes(value) {
+  const text = cleanCell(value).toLowerCase();
+  if (!text) return null;
+
+  const hhmm = text.match(/^(\d{1,3}):(\d{2})$/);
+  if (hhmm) return Number(hhmm[1]) * 60 + Number(hhmm[2]);
+
+  const hours = text.match(/(\d+(?:\.\d+)?)\s*(h|hr|hrs|hour|hours)\b/);
+  if (hours) return Number(hours[1]) * 60;
+
+  const mins = text.match(/(\d+(?:\.\d+)?)\s*(m|min|mins|minute|minutes)\b/);
+  if (mins) return Number(mins[1]);
+
+  return null;
+}
+
+function classifyTicketType(record) {
+  if (isExtensionRecord(record)) return "Extension";
+
+  const text = [record.durationRaw, record.transactionDescription, record.ticketType]
+    .join(" ")
+    .toLowerCase();
+
+  if (text.includes("overnight")) return "Overnight";
+  if (text.includes("all day") || text.includes("allday") || text.includes("daily")) return "All day";
+  if (text.includes("monthly")) return "Monthly";
+  if (text.includes("event")) return "Event";
+
+  const explicitHour = text.match(/\b(\d{1,2})\s*(h|hr|hrs|hour|hours)\b/);
+  if (explicitHour) return `${Number(explicitHour[1])}h`;
+
+  const minutes = parseDurationMinutes(record.durationRaw || record.transactionDescription || record.ticketType);
+  if (minutes !== null) {
+    if (minutes <= 45) return "30m";
+    if (minutes <= 75) return "1h";
+    if (minutes <= 135) return "2h";
+    if (minutes <= 195) return "3h";
+    if (minutes <= 255) return "4h";
+    if (minutes <= 315) return "5h";
+    if (minutes <= 375) return "6h";
+    if (minutes >= 900) return "Overnight / long stay";
+    return `${Math.round(minutes / 60)}h`;
+  }
+
+  return "Unknown / other";
+}
+
+function getTicketTypeTime(record) {
+  const basis = els.typeTimeBasis?.value || "transaction";
+  if (basis === "entry") return record.entryDateObj;
+  return record.paymentDateObj || record.entryDateObj;
+}
+
+function getTicketTypeFilteredRecords() {
+  let records = [...state.records];
+
+  const location = els.typeLocationFilter?.value || "all";
+  if (location !== "all") records = records.filter(record => record.location === location);
+
+  const start = parseLocalDateTimeInput(els.typeStart?.value);
+  const end = parseLocalDateTimeInput(els.typeEnd?.value);
+
+  return records.filter(record => {
+    const time = getTicketTypeTime(record);
+    if (!time) return false;
+    if (start && time < start) return false;
+    if (end && time > end) return false;
+    return true;
+  });
+}
+
+function aggregateTicketTypes(records) {
+  const map = new Map();
+
+  for (const record of records) {
+    const type = classifyTicketType(record);
+    if (!map.has(type)) map.set(type, { type, count: 0, totalPaid: 0, paidCount: 0 });
+
+    const row = map.get(type);
+    row.count += 1;
+
+    if (record.amount !== null && Number.isFinite(record.amount)) {
+      row.totalPaid += record.amount;
+      row.paidCount += 1;
+    }
+  }
+
+  const total = records.length || 1;
+  return [...map.values()]
+    .map(row => ({
+      ...row,
+      share: row.count / total,
+      avgPaid: row.paidCount ? row.totalPaid / row.paidCount : null
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function populateTicketTypeFilters() {
+  if (!els.typeLocationFilter || !state.records.length) return;
+
+  const currentLocation = els.typeLocationFilter.value || "all";
+  const locations = [...new Set(state.records.map(record => record.location))]
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  els.typeLocationFilter.innerHTML =
+    `<option value="all">All locations</option>` +
+    locations.map(location => `<option value="${escapeHtml(location)}">${escapeHtml(location)}</option>`).join("");
+
+  if (currentLocation !== "all" && locations.includes(currentLocation)) els.typeLocationFilter.value = currentLocation;
+
+  const times = state.records
+    .map(record => record.paymentDateObj || record.entryDateObj)
+    .filter(Boolean)
+    .sort((a, b) => a - b);
+
+  if (times.length) {
+    els.typeStart.value = toDateTimeLocalValue(times[0]);
+    els.typeEnd.value = toDateTimeLocalValue(times[times.length - 1]);
+  }
+}
+
+function renderTicketTypePage() {
+  if (!els.typePage || !state.records.length) return;
+
+  const records = getTicketTypeFilteredRecords();
+  const rows = aggregateTicketTypes(records);
+  state.lastTicketTypeRows = rows;
+
+  const paidValues = records.map(record => record.amount).filter(value => value !== null && Number.isFinite(value));
+  els.typeTotalTickets.textContent = records.length.toLocaleString();
+  els.typeActiveTypes.textContent = rows.length.toLocaleString();
+  els.typeTopType.textContent = rows[0] ? rows[0].type : "--";
+  els.typeAvgPaid.textContent = paidValues.length ? formatMoney(average(paidValues)) : "--";
+
+  if (!rows.length) {
+    els.typeTableBody.innerHTML = `<tr><td colspan="5">No tickets match this time period.</td></tr>`;
+    if (typeof Plotly !== "undefined") Plotly.purge(els.typeChart);
+    return;
+  }
+
+  els.typeTableBody.innerHTML = rows.map(row => `
+    <tr>
+      <td>${escapeHtml(row.type)}</td>
+      <td><strong>${row.count.toLocaleString()}</strong></td>
+      <td>${(row.share * 100).toFixed(1)}%</td>
+      <td>${formatMoney(row.totalPaid)}</td>
+      <td>${row.avgPaid === null ? "--" : formatMoney(row.avgPaid)}</td>
+    </tr>
+  `).join("");
+
+  if (typeof Plotly !== "undefined") {
+    Plotly.newPlot(
+      els.typeChart,
+      [{
+        x: rows.map(row => row.count),
+        y: rows.map(row => row.type),
+        type: "bar",
+        orientation: "h",
+        text: rows.map(row => `${row.count.toLocaleString()} tickets`),
+        textposition: "auto",
+        hovertemplate: "%{y}<br>Tickets: %{x}<extra></extra>"
+      }],
+      {
+        margin: { l: 150, r: 30, t: 20, b: 45 },
+        height: Math.max(360, rows.length * 44),
+        paper_bgcolor: "white",
+        plot_bgcolor: "white",
+        xaxis: { title: "Tickets", gridcolor: "#e5e7eb", zeroline: false },
+        yaxis: { automargin: true, autorange: "reversed" }
+      },
+      { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] }
+    );
+  }
+}
+
+function downloadTicketTypeCsv() {
+  const rows = aggregateTicketTypes(getTicketTypeFilteredRecords()).map(row => ({
+    ticket_type: row.type,
+    tickets: row.count,
+    share_percent: (row.share * 100).toFixed(1),
+    total_paid: row.totalPaid.toFixed(2),
+    average_paid: row.avgPaid === null ? "" : row.avgPaid.toFixed(2)
+  }));
+
+  downloadCsv(rows, "ticket_type_summary.csv");
+}
+
 function downloadCsv(rows, filename) {
   const csv = Papa.unparse(rows);
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
@@ -827,18 +1051,35 @@ function downloadCsv(rows, filename) {
 
 function showDashboardPage(pageName) {
   state.currentPage = pageName;
+
   if (pageName === "now") {
     els.dashboard.classList.add("hidden");
     els.nowPage.classList.remove("hidden");
+    els.typePage.classList.add("hidden");
     els.hourlyPageBtn.classList.remove("active");
     els.nowPageBtn.classList.add("active");
+    els.typePageBtn.classList.remove("active");
     renderNowPage();
-  } else {
-    els.dashboard.classList.remove("hidden");
-    els.nowPage.classList.add("hidden");
-    els.hourlyPageBtn.classList.add("active");
-    els.nowPageBtn.classList.remove("active");
+    return;
   }
+
+  if (pageName === "types") {
+    els.dashboard.classList.add("hidden");
+    els.nowPage.classList.add("hidden");
+    els.typePage.classList.remove("hidden");
+    els.hourlyPageBtn.classList.remove("active");
+    els.nowPageBtn.classList.remove("active");
+    els.typePageBtn.classList.add("active");
+    renderTicketTypePage();
+    return;
+  }
+
+  els.dashboard.classList.remove("hidden");
+  els.nowPage.classList.add("hidden");
+  els.typePage.classList.add("hidden");
+  els.hourlyPageBtn.classList.add("active");
+  els.nowPageBtn.classList.remove("active");
+  els.typePageBtn.classList.remove("active");
 }
 
 function wireEvents() {
@@ -857,8 +1098,13 @@ function wireEvents() {
 
   els.hourlyPageBtn.addEventListener("click", () => showDashboardPage("hourly"));
   els.nowPageBtn.addEventListener("click", () => showDashboardPage("now"));
+  els.typePageBtn.addEventListener("click", () => showDashboardPage("types"));
   els.nowLocationFilter.addEventListener("change", renderNowPage);
   els.downloadOpenTicketsBtn.addEventListener("click", downloadOpenTicketsCsv);
+  els.downloadTicketTypesBtn.addEventListener("click", downloadTicketTypeCsv);
+  for (const el of [els.typeTimeBasis, els.typeStart, els.typeEnd, els.typeLocationFilter]) {
+    el.addEventListener("change", renderTicketTypePage);
+  }
 
   els.locationSearch.addEventListener("input", renderLocationButtons);
   els.selectAllLocations.addEventListener("click", selectAllLocations);

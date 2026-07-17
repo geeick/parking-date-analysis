@@ -6,7 +6,7 @@
   <title>Safety Park Parking Date Analysis</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=120" />
+  <link rel="stylesheet" href="style.css?v=130" />
 </head>
 <body>
   <main class="page">
@@ -15,7 +15,7 @@
         <p class="eyebrow">Safety Park Analysis</p>
         <h1>Hourly Car Entry Dashboard</h1>
         <p class="subtitle">Upload a Safety Park CSV. The graphs and current open-ticket counts update automatically.</p>
-        <span class="version-pill">v5 · hourly graphs + cars right now</span>
+        <span class="version-pill">v6 · hourly graphs + cars right now + ticket types</span>
       </div>
 
       <label class="upload-box" id="dropZone">
@@ -32,6 +32,7 @@
     <nav id="pageTabs" class="page-tabs hidden" aria-label="Dashboard pages">
       <button id="hourlyPageBtn" class="page-tab active" type="button">Hourly graphs</button>
       <button id="nowPageBtn" class="page-tab" type="button">Cars in lots right now</button>
+      <button id="typePageBtn" class="page-tab" type="button">Ticket types</button>
     </nav>
 
     <section id="dashboard" class="dashboard hidden">
@@ -162,8 +163,73 @@
         </table>
       </div>
     </section>
+
+    <section id="typePage" class="main-panel type-page hidden">
+      <div class="chart-topline">
+        <div>
+          <h2 class="chart-title">Ticket types in selected period</h2>
+          <p class="chart-note">See how many tickets were Overnight, 1h, 2h, Extension, All day, and other types for a selected time window.</p>
+        </div>
+        <div class="mini-actions">
+          <button id="downloadTicketTypesBtn" class="secondary-btn" type="button">Download ticket type CSV</button>
+        </div>
+      </div>
+
+      <div class="type-filter-grid">
+        <div>
+          <label class="control-label" for="typeTimeBasis">Count tickets by</label>
+          <select id="typeTimeBasis">
+            <option value="transaction">Transaction Time</option>
+            <option value="entry">Entry Time</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="control-label" for="typeStart">Start</label>
+          <input id="typeStart" type="datetime-local" />
+        </div>
+
+        <div>
+          <label class="control-label" for="typeEnd">End</label>
+          <input id="typeEnd" type="datetime-local" />
+        </div>
+
+        <div>
+          <label class="control-label" for="typeLocationFilter">Location</label>
+          <select id="typeLocationFilter">
+            <option value="all">All locations</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="metrics">
+        <div class="metric"><span class="metric-label">Tickets counted</span><span id="typeTotalTickets" class="metric-value">--</span></div>
+        <div class="metric"><span class="metric-label">Ticket types</span><span id="typeActiveTypes" class="metric-value">--</span></div>
+        <div class="metric"><span class="metric-label">Top type</span><span id="typeTopType" class="metric-value">--</span></div>
+        <div class="metric"><span class="metric-label">Avg. paid</span><span id="typeAvgPaid" class="metric-value">--</span></div>
+      </div>
+
+      <div id="typeChart" class="type-chart"></div>
+
+      <div class="table-wrap">
+        <table class="clean-table">
+          <thead>
+            <tr>
+              <th>Ticket type</th>
+              <th>Tickets</th>
+              <th>Share</th>
+              <th>Total paid</th>
+              <th>Avg. paid</th>
+            </tr>
+          </thead>
+          <tbody id="typeTableBody">
+            <tr><td colspan="5">Upload a CSV to calculate ticket types.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
   </main>
 
-  <script src="app.js?v=120"></script>
+  <script src="app.js?v=130"></script>
 </body>
 </html>

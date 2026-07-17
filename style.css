@@ -140,7 +140,7 @@ h1 {
 
 .page-tabs {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
   margin: 18px 0;
 }
@@ -197,7 +197,7 @@ h1 {
   text-transform: uppercase;
 }
 
-select, input[type="date"], input[type="text"] {
+select, input[type="date"], input[type="datetime-local"], input[type="text"] {
   width: 100%;
   min-height: 48px;
   border: 1px solid var(--border);
@@ -311,11 +311,41 @@ pre { white-space: pre-wrap; overflow: auto; color: #334155; background: #f8fafc
 .clean-table th { background: #f8fafc; font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em; }
 .clean-table tr:last-child td { border-bottom: none; }
 
+
+
+.type-page {
+  margin-top: 18px;
+  padding: 20px;
+}
+
+.type-filter-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr 1fr 1.2fr;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.type-chart {
+  margin-top: 18px;
+  min-height: 360px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: white;
+  padding: 10px;
+}
+
 @media (max-width: 1120px) {
   .dashboard { grid-template-columns: 1fr; }
   .side-panel { position: static; max-height: none; order: -1; }
   .hero { grid-template-columns: 1fr; }
   .metrics { grid-template-columns: 1fr 1fr; }
+}
+
+
+@media (max-width: 900px) {
+  .type-filter-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 620px) {
