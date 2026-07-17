@@ -864,12 +864,37 @@ function parseDurationMinutes(value) {
   return null;
 }
 
+function formatHourMinute(hour, minute, ampm) {
+  const normalizedHour = Number(hour);
+  const normalizedMinute = String(Number(minute || 0)).padStart(2, "0");
+  return `${normalizedHour}:${normalizedMinute} ${String(ampm || "").toUpperCase()}`;
+}
+
+function classifyUntilTicketType(text) {
+  const until = text.match(/(?:until|till)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)/i);
+  if (!until) return null;
+
+  const [, hourText, minuteText = "00", ampmRaw] = until;
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const ampm = ampmRaw.toUpperCase();
+  const label = formatHourMinute(hour, minute, ampm);
+
+  if (ampm === "PM" && (hour === 11 || hour === 12) && minute >= 55) return "All day";
+  if (ampm === "AM" && hour <= 11) return `Overnight till ${label}`;
+
+  return `Till ${label}`;
+}
+
 function classifyTicketType(record) {
   if (isExtensionRecord(record)) return "Extension";
 
   const text = [record.durationRaw, record.transactionDescription, record.ticketType]
     .join(" ")
     .toLowerCase();
+
+  const untilType = classifyUntilTicketType(text);
+  if (untilType) return untilType;
 
   if (text.includes("overnight")) return "Overnight";
   if (text.includes("all day") || text.includes("allday") || text.includes("daily")) return "All day";
@@ -881,9 +906,12 @@ function classifyTicketType(record) {
 
   const minutes = parseDurationMinutes(record.durationRaw || record.transactionDescription || record.ticketType);
   if (minutes !== null) {
+    if (minutes <= 22) return "15m";
     if (minutes <= 45) return "30m";
     if (minutes <= 75) return "1h";
+    if (minutes <= 105) return "1.5h";
     if (minutes <= 135) return "2h";
+    if (minutes <= 165) return "2.5h";
     if (minutes <= 195) return "3h";
     if (minutes <= 255) return "4h";
     if (minutes <= 315) return "5h";

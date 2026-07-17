@@ -30,3 +30,8 @@ The "Cars in lots right now" page counts rows as open tickets when there is no e
 ## Ticket type summary
 
 The "Ticket types" page counts tickets in a selected time window by transaction time or entry time. It classifies rows into categories such as 1h, 2h, 3h, All day, Overnight, Event, Monthly, Extension, and Unknown / other. Extension rows are counted as their own ticket type instead of being mixed into duration buckets.
+
+## Ticket type logic
+
+The Ticket types page groups `Duration(hh:mm)` values such as `1:00`, `2:00`, `0:30`, and `Until 08:00 PM`. `Until 11:59 PM` is treated as All day, morning `Until` values are treated as Overnight till that time, and other `Until` values are shown as Till that time. Extension rows remain their own Extension category.
+
