@@ -6,8 +6,8 @@
   <title>Safety Park Parking Date Analysis</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=133" />
-  <link rel="stylesheet" href="forecast.css?v=133" />
+  <link rel="stylesheet" href="style.css?v=134" />
+  <link rel="stylesheet" href="forecast.css?v=134" />
 </head>
 <body>
   <main class="page">
@@ -16,7 +16,7 @@
         <p class="eyebrow">Safety Park Analysis</p>
         <h1>Hourly Car Entry Dashboard</h1>
         <p class="subtitle">Upload a Safety Park CSV. The graphs, open-ticket counts, ticket types, revenue forecast, and price recommendations update automatically.</p>
-        <span class="version-pill">v8 · revenue forecast + revenue-based price recommendations</span>
+        <span class="version-pill">v9 · similar-demand weekday aggregation</span>
       </div>
 
       <label class="upload-box" id="dropZone">
@@ -231,8 +231,10 @@
     </section>
   </main>
 
-  <script src="app.js?v=133"></script>
-  <script src="forecast.js?v=133"></script>
-  <script src="pricing.js?v=133"></script>
+  <script src="app.js?v=134"></script>
+  <script src="forecast.js?v=134"></script>
+  <script src="pricing.js?v=134"></script>
+  <script src="comparison.js?v=134"></script>
+  <script src="similar-weekdays.js?v=134"></script>
 </body>
 </html>
