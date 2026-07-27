@@ -105,4 +105,18 @@
   }
 
   window.ParkingComparison = { build, describe, parseKey, weekdayNames: WEEKDAY_NAMES };
+
+  if (!document.querySelector('link[href*="multi-csv.css"]')) {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "multi-csv.css?v=136";
+    document.head.appendChild(link);
+  }
+
+  window.addEventListener("load", () => {
+    if (document.querySelector('script[src*="smart-prior-year.js"]')) return;
+    const script = document.createElement("script");
+    script.src = "smart-prior-year.js?v=136";
+    document.body.appendChild(script);
+  });
 })();
