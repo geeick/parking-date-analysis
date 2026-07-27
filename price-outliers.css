@@ -1,0 +1,31 @@
+.page-tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.outlier-page { margin-top: 18px; padding: 20px; }
+.outlier-filter-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.outlier-notice { margin: 0 0 16px; padding: 13px 15px; border: 1px solid #bbf7d0; border-radius: 15px; background: #f0fdf4; color: #166534; font-size: 13px; font-weight: 750; }
+.outlier-notice.warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.outlier-table th, .outlier-table td { vertical-align: top; }
+.outlier-table th:nth-child(1), .outlier-table td:nth-child(1) { min-width: 190px; }
+.outlier-table th:nth-child(2), .outlier-table td:nth-child(2) { min-width: 120px; }
+.outlier-table th:nth-child(3), .outlier-table td:nth-child(3) { min-width: 180px; }
+.outlier-table th:nth-child(4), .outlier-table td:nth-child(4) { min-width: 180px; }
+.outlier-table th:nth-child(5), .outlier-table td:nth-child(5) { min-width: 130px; }
+.outlier-table th:nth-child(10), .outlier-table td:nth-child(10) { min-width: 110px; }
+.outlier-row.large td { background: #fff7ed; }
+.outlier-row.moderate td { background: #fffbeb; }
+.outlier-row.notice td { background: #f8fafc; }
+.outlier-price-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.outlier-price-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 8px; border: 1px solid #d9e2ef; border-radius: 999px; background: white; color: #334155; font-size: 11px; font-weight: 850; white-space: nowrap; }
+.outlier-direction, .outlier-severity { display: inline-flex; align-items: center; justify-content: center; min-width: 76px; min-height: 30px; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 950; }
+.outlier-direction.higher, .price-up { color: #b91c1c; }
+.outlier-direction.higher { background: #fee2e2; }
+.outlier-direction.lower, .price-down { color: #166534; }
+.outlier-direction.lower { background: #dcfce7; }
+.outlier-direction.same { background: #e2e8f0; color: #334155; }
+.outlier-severity.large { background: #fed7aa; color: #9a3412; }
+.outlier-severity.moderate { background: #fef3c7; color: #92400e; }
+.outlier-severity.notice { background: #e2e8f0; color: #334155; }
+.outlier-details { margin: 0; padding: 0; border: 0; background: transparent; }
+.outlier-details summary { font-size: 12px; }
+.outlier-history-text { margin-top: 8px; min-width: 280px; color: #475569; font-size: 12px; line-height: 1.55; }
+@media (max-width: 1100px) { .outlier-filter-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 680px) { .page-tabs, .outlier-filter-grid { grid-template-columns: 1fr; } }
