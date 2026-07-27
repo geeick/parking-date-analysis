@@ -646,8 +646,12 @@ function generateChart() {
   }
 
   const yCandidates = [...lineRows.map(row => row.avgCars), ...scatterRows.map(row => row.count)];
-  const yMax = Math.max(5, ...yCandidates) * 1.16;
-
+  const yMax =
+    yCandidates.reduce(
+      (currentMax, value) => Math.max(currentMax, value),
+      5
+    ) * 1.16;
+    
   const layout = {
     margin: { l: 64, r: 28, t: 24, b: 76 },
     height: 610,
@@ -723,11 +727,26 @@ function isExtensionRecord(record) {
 }
 
 function getAnalysisNow(records) {
-  const times = records
-    .map(r => r.paymentDateObj || r.exitDateObj || r.entryDateObj)
-    .filter(Boolean)
-    .map(d => d.getTime());
-  return times.length ? new Date(Math.max(...times)) : new Date();
+  let latestTime = -Infinity;
+
+  for (const record of records) {
+    const date =
+      record.paymentDateObj ||
+      record.exitDateObj ||
+      record.entryDateObj;
+
+    if (!date) continue;
+
+    const time = date.getTime();
+
+    if (Number.isFinite(time) && time > latestTime) {
+      latestTime = time;
+    }
+  }
+
+  return Number.isFinite(latestTime)
+    ? new Date(latestTime)
+    : new Date();
 }
 
 function startOfPreviousDay(date) {
