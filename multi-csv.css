@@ -1,0 +1,83 @@
+.csv-library {
+  margin-top: 14px;
+  padding: 16px 18px;
+}
+
+.csv-library-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.csv-library-heading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.csv-library-heading strong {
+  font-size: 16px;
+}
+
+.csv-library-heading span,
+.csv-library-summary {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.csv-library-heading button {
+  min-height: 40px;
+  border-radius: 13px;
+  font-size: 12px;
+  flex: 0 0 auto;
+}
+
+.csv-library-summary {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.csv-file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  max-height: 170px;
+  overflow-y: auto;
+}
+
+.csv-file-chip {
+  display: inline-grid;
+  gap: 2px;
+  max-width: 340px;
+  padding: 8px 11px;
+  border: 1px solid #cfe0ff;
+  border-radius: 13px;
+  background: #f4f8ff;
+}
+
+.csv-file-chip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.csv-file-chip span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+@media (max-width: 620px) {
+  .csv-library-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .csv-library-heading button {
+    width: 100%;
+  }
+}
