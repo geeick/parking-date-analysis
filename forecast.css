@@ -11,5 +11,26 @@
 .forecast-projected { display: inline-block; margin-left: 6px; color: #1d4ed8; font-size: 11px; font-weight: 950; text-transform: uppercase; letter-spacing: .04em; }
 .forecast-empty { color: #64748b; font-style: italic; }
 .forecast-subtext { display: block; margin-top: 3px; color: #64748b; font-size: 12px; }
+
+.price-recommendation-panel { margin: 22px 0 8px; padding: 18px; border: 1px solid #bdd0ff; border-radius: 18px; background: #f8fbff; }
+.recommendation-heading h3 { margin: 0; font-size: 22px; letter-spacing: -0.035em; }
+.recommendation-heading p { margin: 5px 0 0; color: #64748b; font-size: 13px; font-weight: 650; }
+.recommendation-notice { margin-top: 14px; padding: 12px 14px; border: 1px solid #bfdbfe; border-radius: 14px; background: #eff6ff; color: #1e3a8a; font-size: 13px; font-weight: 750; }
+.recommendation-notice.warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.recommendation-table-wrap { margin-top: 14px; }
+.recommendation-table th, .recommendation-table td { vertical-align: top; }
+.recommendation-table th:nth-child(1), .recommendation-table td:nth-child(1) { min-width: 120px; }
+.recommendation-table th:nth-child(2), .recommendation-table td:nth-child(2) { min-width: 150px; }
+.recommendation-table th:nth-child(7), .recommendation-table td:nth-child(7) { min-width: 190px; }
+.recommendation-table th:nth-child(9), .recommendation-table td:nth-child(9) { min-width: 390px; }
+.recommended-price { display: inline-flex; align-items: center; min-height: 34px; padding: 5px 11px; border-radius: 999px; background: #dcfce7; color: #166534; font-size: 17px; font-weight: 950; }
+.observed-price-list, .price-test-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.observed-price-chip, .price-test-chip { display: inline-flex; align-items: center; min-height: 28px; padding: 4px 8px; border: 1px solid #d9e2ef; border-radius: 999px; background: white; color: #334155; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.price-test-chip.recommended { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.confidence-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 70px; min-height: 30px; padding: 4px 9px; border-radius: 999px; font-size: 12px; font-weight: 950; }
+.confidence-badge.high { background: #dcfce7; color: #166534; }
+.confidence-badge.medium { background: #fef3c7; color: #92400e; }
+.confidence-badge.low { background: #fee2e2; color: #991b1b; }
+
 @media (max-width: 1050px) { .forecast-filter-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 620px) { .page-tabs, .forecast-filter-grid { grid-template-columns: 1fr; } }
