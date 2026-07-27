@@ -6,8 +6,8 @@
   <title>Safety Park Parking Date Analysis</title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
-  <link rel="stylesheet" href="style.css?v=135" />
-  <link rel="stylesheet" href="forecast.css?v=135" />
+  <link rel="stylesheet" href="style.css?v=136" />
+  <link rel="stylesheet" href="forecast.css?v=136" />
 </head>
 <body>
   <main class="page">
@@ -15,15 +15,15 @@
       <div>
         <p class="eyebrow">Safety Park Analysis</p>
         <h1>Hourly Car Entry Dashboard</h1>
-        <p class="subtitle">Upload a Safety Park CSV. The graphs, open-ticket counts, ticket types, revenue forecast, and price recommendations update automatically.</p>
-        <span class="version-pill">v10 · comparable weekdays + corrected price-day counts</span>
+        <p class="subtitle">Add one or more Safety Park CSVs. Files are merged, duplicate rows are removed, and the combined history is saved in this browser.</p>
+        <span class="version-pill">v11 · saved multi-CSV library + smarter prior-year filtering</span>
       </div>
 
       <label class="upload-box" id="dropZone">
-        <input id="fileInput" type="file" accept=".csv,text/csv" />
+        <input id="fileInput" type="file" multiple accept=".csv,text/csv" />
         <span>
-          <span class="upload-title">Upload CSV</span>
-          <span class="upload-subtitle">or drag it here</span>
+          <span class="upload-title">Add CSV files</span>
+          <span class="upload-subtitle">select several or drag them here</span>
         </span>
       </label>
     </section>
@@ -231,10 +231,11 @@
     </section>
   </main>
 
-  <script src="app.js?v=135"></script>
-  <script src="forecast.js?v=135"></script>
-  <script src="comparison.js?v=135"></script>
-  <script src="pricing.js?v=135"></script>
-  <script src="similar-weekdays.js?v=135"></script>
+  <script src="app.js?v=136"></script>
+  <script src="multi-csv.js?v=136"></script>
+  <script src="forecast.js?v=136"></script>
+  <script src="comparison.js?v=136"></script>
+  <script src="pricing.js?v=136"></script>
+  <script src="similar-weekdays.js?v=136"></script>
 </body>
 </html>
