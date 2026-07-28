@@ -1,0 +1,38 @@
+#priceRecommendationPanel[aria-hidden="true"] { display: none !important; }
+.slot-pricing-panel { margin: 24px 0; padding: 20px; border: 1px solid #bfdbfe; border-radius: 20px; background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); }
+.slot-pricing-heading h3 { margin: 2px 0 6px; font-size: 25px; letter-spacing: -0.04em; }
+.slot-pricing-heading p { margin: 0; max-width: 920px; color: #64748b; font-size: 14px; }
+.slot-eyebrow { margin: 0 !important; color: #2563eb !important; font-size: 11px !important; font-weight: 950; letter-spacing: .12em; text-transform: uppercase; }
+.slot-how-it-works { display: grid; gap: 4px; margin-top: 16px; padding: 13px 15px; border: 1px solid #c7d2fe; border-radius: 14px; background: #eef2ff; color: #3730a3; font-size: 13px; }
+.slot-control-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.slot-pricing-notice { margin-top: 16px; padding: 12px 14px; border: 1px solid #bfdbfe; border-radius: 14px; background: #eff6ff; color: #1e3a8a; font-size: 13px; font-weight: 750; }
+.slot-pricing-notice.warning { border-color: #fde68a; background: #fffbeb; color: #92400e; }
+.slot-pricing-cards { display: grid; gap: 16px; margin-top: 16px; }
+.slot-card { overflow: hidden; border: 1px solid #dbe5f2; border-radius: 18px; background: #fff; box-shadow: 0 10px 24px rgba(15,23,42,.05); }
+.slot-card-header { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 15px 17px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+.slot-card-header h4 { margin: 2px 0 0; font-size: 20px; letter-spacing: -.03em; }
+.slot-daypart { color: #64748b; font-size: 11px; font-weight: 950; text-transform: uppercase; letter-spacing: .08em; }
+.slot-option-count { padding: 5px 9px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 11px; font-weight: 900; }
+.slot-card-body { display: grid; }
+.slot-option-row { display: grid; grid-template-columns: minmax(120px,.8fr) minmax(135px,.9fr) minmax(150px,1fr) minmax(150px,1fr) 85px minmax(240px,1.45fr); gap: 12px; align-items: center; padding: 15px 17px; border-bottom: 1px solid #e2e8f0; }
+.slot-option-row:last-child { border-bottom: 0; }
+.slot-option-name { display: flex; align-items: flex-start; flex-direction: column; gap: 6px; font-size: 16px; }
+.slot-price-cell { display: flex; flex-direction: column; gap: 2px; }
+.slot-price-cell strong { font-size: 18px; }
+.slot-price-cell span:not(.slot-cell-label) { color: #64748b; font-size: 11px; }
+.slot-price-cell.recommended { padding: 9px 11px; border: 1px solid #86efac; border-radius: 12px; background: #f0fdf4; }
+.slot-price-cell.recommended strong { color: #166534; }
+.slot-cell-label { color: #64748b; font-size: 10px; font-weight: 950; text-transform: uppercase; letter-spacing: .07em; }
+.slot-status { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border-radius: 999px; font-size: 10px; font-weight: 950; }
+.slot-status.keep { background: #dcfce7; color: #166534; }
+.slot-status.review { background: #fef3c7; color: #92400e; }
+.slot-status.historical { background: #e0e7ff; color: #3730a3; }
+.slot-reason { color: #475569; font-size: 12px; line-height: 1.45; }
+.slot-details { grid-column: 1 / -1; margin: 0; padding: 0; border: 0; background: transparent; }
+.slot-details summary { display: inline-block; padding: 6px 9px; border-radius: 10px; background: #f1f5f9; font-size: 11px; }
+.slot-candidate-list { display: grid; gap: 7px; margin-top: 8px; }
+.slot-candidate { display: grid; grid-template-columns: 80px 90px 80px 1fr 1fr; gap: 9px; align-items: center; padding: 8px 10px; border: 1px solid #e2e8f0; border-radius: 11px; background: #f8fafc; color: #475569; font-size: 11px; }
+.slot-candidate.winner { border-color: #86efac; background: #f0fdf4; color: #166534; }
+.slot-empty { padding: 18px; border: 1px dashed #cbd5e1; border-radius: 14px; color: #64748b; text-align: center; font-weight: 700; }
+@media (max-width: 1100px) { .slot-control-grid { grid-template-columns: 1fr 1fr; } .slot-option-row { grid-template-columns: 1fr 1fr 1fr; } .slot-reason { grid-column: 1 / -1; } }
+@media (max-width: 700px) { .slot-control-grid { grid-template-columns: 1fr; } .slot-option-row { grid-template-columns: 1fr; } .slot-card-header { align-items: flex-start; } .slot-candidate { grid-template-columns: 1fr 1fr; } }
